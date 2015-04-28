@@ -46,15 +46,33 @@ void dummy()
 	record_opts__config(NULL);
 }
 
+int lua_report(lua_State *ls, int status);
+int lua_traceback(lua_State *ls);
 
 int shark_perf_module_init(lua_State *ls)
 {
+	int base, ret;
+
 	page_size = sysconf(_SC_PAGE_SIZE);
 	//verbose = 2;
 
 #include "perf_builtin_lua.h"
-	luaL_loadbuffer(ls, luaJIT_BC_perf, luaJIT_BC_perf_SIZE, NULL);
-	lua_pcall(ls, 0, 0, 0);
+	ret = luaL_loadbuffer(ls, luaJIT_BC_perf, luaJIT_BC_perf_SIZE, NULL);
+	if(ret) {
+		ret = lua_report(ls, ret);
+		return -1;
+	}
+
+	base = lua_gettop(ls) - 1;
+	lua_pushcfunction(ls, lua_traceback);
+	lua_insert(ls, base);
+
+	if (lua_pcall(ls, 0, 0, base)) {
+		fprintf(stderr, "%s\n", lua_tostring(ls, -1));
+		exit(EXIT_FAILURE);
+	}
+
+	lua_pop(ls, 1);
 
 	return 0;
 }

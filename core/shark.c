@@ -52,7 +52,7 @@ static void l_message(const char *pname, const char *msg)
 	fflush(stderr);
 }
 
-static int report(lua_State *ls, int status)
+int lua_report(lua_State *ls, int status)
 {
 	if (status && !lua_isnil(ls, -1)) {
 		const char *msg = lua_tostring(ls, -1);
@@ -315,7 +315,7 @@ int main(int argc, char **argv)
 	lua_setglobal(ls, "arg");
 
 	if(ret = luaL_loadfile(ls, argv[script])) {
-		ret = report(ls, ret);
+		ret = lua_report(ls, ret);
 		goto out;
 	}
 
