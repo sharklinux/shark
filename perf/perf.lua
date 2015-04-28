@@ -576,11 +576,16 @@ local function mmap_read_consume(evlist, callback, max_nr_read)
 
     perf_sample.name = C.perf_evsel__name(evsel)
 
-    --TODO: use ref is more faster then lua table?
-    local ctype_ref = C.perf_evsel__get_ctype_ref(evsel)
-    local ctype = shark_get_ref(ctype_ref)
-    local sample_event = ffi_cast(ctype, perf_sample)
-    callback(sample_event)
+    local tp_fmt = C.perf_evsel__tp_fmt(evsel)
+    if tp_fmt == nil then
+      callback(perf_sample)
+    else
+      --TODO: use ref is more faster than lua table?
+      local ctype_ref = C.perf_evsel__get_ctype_ref(evsel)
+      local ctype = shark_get_ref(ctype_ref)
+      local sample_event = ffi_cast(ctype, perf_sample)
+      callback(sample_event)
+    end
 
     C.perf_evlist__mmap_consume(evlist, idx)
 
@@ -644,6 +649,10 @@ local function open_perf_event(str, config, callback)
     C.__perf_evsel__set_sample_bit(evsel, C.PERF_SAMPLE_IDENTIFIER);
 
     local tp_fmt = C.perf_evsel__tp_fmt(evsel)
+    if tp_fmt == nil then
+      --it's not tracepoint
+      return
+    end
     local event_name = C.perf_evsel__name(evsel)
     local ctype = load_event_ctype(tp_fmt, ffi.string(event_name))
     local ref = shark.lua_ref(ctype)

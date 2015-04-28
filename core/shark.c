@@ -299,7 +299,8 @@ int main(int argc, char **argv)
 	lua_setglobal(ls, "arg");
 
 #include "shark_init.h"
-	luaL_loadbuffer(ls, luaJIT_BC_shark_init, luaJIT_BC_shark_init_SIZE, NULL);
+	luaL_loadbuffer(ls, luaJIT_BC_shark_init, luaJIT_BC_shark_init_SIZE,
+			NULL);
 	lua_pcall(ls, 0, 0, 0);
 
 	g_event_loop = luv_loop(ls);
