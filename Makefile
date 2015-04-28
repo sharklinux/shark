@@ -13,10 +13,10 @@ OBJS=core/shark.o core/luv/luv.o bpf/bpf.o perf/perf.o
 BUILTIN_LUA_HEADER = core/shark_builtin.h bpf/bpf_builtin_lua.h perf/perf_builtin_lua.h
 
 #ffi need to call some functions in library, so add -rdynamic option
-$(TARGET) : $(BUILTIN_LUA_HEADER) $(OBJS) luajit libuv force
+$(TARGET) : $(BUILTIN_LUA_HEADER) $(OBJS) core/luajit/src/libluajit.a libuv force
 	clang++ -o $(TARGET) -rdynamic $(OBJS) $(LIB)
 
-luajit: core/luajit/src/libluajit.a
+core/luajit/src/libluajit.a:
 	@cd core/luajit; make
 
 libuv: core/libuv/.libs/libuv.a
