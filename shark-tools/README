@@ -1,0 +1,7 @@
+shark-tools: active maintained toolset
+
+These shark tools is purpose for generate standalone binary, easy to use
+in any environment.
+
+Note that shark tools will distributed with binary, active maintained, it's NOT 
+samples.
