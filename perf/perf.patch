@@ -1,0 +1,331 @@
+diff --git a/tools/perf/Makefile.perf b/tools/perf/Makefile.perf
+index aa6a504..54caada 100644
+--- a/tools/perf/Makefile.perf
++++ b/tools/perf/Makefile.perf
+@@ -34,21 +34,25 @@ include config/utilities.mak
+ # Define EXTRA_CFLAGS=-m64 or EXTRA_CFLAGS=-m32 as appropriate for cross-builds.
+ #
+ # Define NO_DWARF if you do not want debug-info analysis feature at all.
++NO_DWARF = 1
+ #
+ # Define WERROR=0 to disable treating any warnings as errors.
+ #
+ # Define NO_NEWT if you do not want TUI support. (deprecated)
+ #
+ # Define NO_SLANG if you do not want TUI support.
++NO_SLANG = 1
+ #
+ # Define NO_GTK2 if you do not want GTK+ GUI support.
+ #
+ # Define NO_DEMANGLE if you do not want C++ symbol demangling.
+ #
+ # Define NO_LIBELF if you do not want libelf dependency (e.g. cross-builds)
++NO_LIBELF = 1
+ #
+ # Define NO_LIBUNWIND if you do not want libunwind dependency for dwarf
+ # backtrace post unwind.
++NO_LIBUNWIND = 1
+ #
+ # Define NO_BACKTRACE if you do not want stack backtrace debug feature
+ #
+@@ -56,6 +60,7 @@ include config/utilities.mak
+ #
+ # Define NO_LIBAUDIT if you do not want libaudit support
+ #
++NO_LIBAUDIT = 1
+ # Define NO_LIBBIONIC if you do not want bionic support
+ #
+ # Define NO_LIBDW_DWARF_UNWIND if you do not want libdw support
+diff --git a/tools/perf/util/evlist.c b/tools/perf/util/evlist.c
+index 28b8ce8..4669790 100644
+--- a/tools/perf/util/evlist.c
++++ b/tools/perf/util/evlist.c
+@@ -432,6 +432,7 @@ int perf_evlist__alloc_pollfd(struct perf_evlist *evlist)
+ static int __perf_evlist__add_pollfd(struct perf_evlist *evlist, int fd, int idx)
+ {
+ 	int pos = fdarray__add(&evlist->pollfd, fd, POLLIN | POLLERR | POLLHUP);
++
+ 	/*
+ 	 * Save the idx so that when we filter out fds POLLHUP'ed we can
+ 	 * close the associated evlist->mmap[] entry.
+@@ -450,6 +451,13 @@ int perf_evlist__add_pollfd(struct perf_evlist *evlist, int fd)
+ 	return __perf_evlist__add_pollfd(evlist, fd, -1);
+ }
+ 
++/* return pollfd */
++struct pollfd *perf_evlist_pollfd(struct perf_evlist *evlist, int *nr)
++{
++	*nr = evlist->pollfd.nr;
++	return evlist->pollfd.entries;
++}
++
+ static void perf_evlist__munmap_filtered(struct fdarray *fda, int fd)
+ {
+ 	struct perf_evlist *evlist = container_of(fda, struct perf_evlist, pollfd);
+@@ -632,6 +640,58 @@ static struct perf_evsel *perf_evlist__event2evsel(struct perf_evlist *evlist,
+ 	return NULL;
+ }
+ 
++union perf_event *perf_evlist__mmap_read_top(struct perf_evlist *evlist,
++					     int *idx)
++{
++	union perf_event *event;
++	union perf_event *top_event = NULL;
++	u64 top_time = -1;
++	struct perf_sample sample;
++	
++	int i;
++
++	for (i = 0; i < evlist->nr_mmaps; i++) {
++		struct perf_mmap *md = &evlist->mmap[i];
++		unsigned int old = md->prev;
++		u64 time;
++
++		if ((event = perf_evlist__mmap_read(evlist, i)) == NULL)
++			continue;
++
++		md->prev = old;
++
++		if (event->header.type != PERF_RECORD_SAMPLE) {
++			top_event = event;
++			*idx = i;
++			goto out;
++		}
++
++		if (perf_evlist__parse_sample(evlist, event, &sample)) {
++			fprintf(stderr, "perf_evlist__parse_sample failed\n");
++			perf_evlist__mmap_consume(evlist, i);
++			continue;
++		}
++
++		time = sample.time;
++
++		if (time < top_time) {
++			top_time = time;
++			top_event = event;
++			*idx = i;
++		}
++	}
++
++ out:
++	if (top_event) {
++		event = perf_evlist__mmap_read(evlist, *idx);
++		if (event != top_event)
++			fprintf(stderr,
++				"perf_evlist mmap_read_top error happened\n");
++	}
++
++	return top_event;
++}
++
+ union perf_event *perf_evlist__mmap_read(struct perf_evlist *evlist, int idx)
+ {
+ 	struct perf_mmap *md = &evlist->mmap[idx];
+@@ -712,6 +772,11 @@ static void perf_evlist__mmap_put(struct perf_evlist *evlist, int idx)
+ 		__perf_evlist__munmap(evlist, idx);
+ }
+ 
++int perf_evlist__nr_mmaps(struct perf_evlist *evlist)
++{
++	return evlist->nr_mmaps;
++}
++
+ void perf_evlist__mmap_consume(struct perf_evlist *evlist, int idx)
+ {
+ 	struct perf_mmap *md = &evlist->mmap[idx];
+@@ -1027,6 +1092,14 @@ int perf_evlist__mmap(struct perf_evlist *evlist, unsigned int pages,
+ 	return perf_evlist__mmap_per_cpu(evlist, &mp);
+ }
+ 
++void perf_evlist__set_maps(struct perf_evlist *evlist,
++			   struct cpu_map *cpus,
++			   struct thread_map *threads)
++{
++	evlist->cpus    = cpus;
++	evlist->threads = threads;
++}
++
+ int perf_evlist__create_maps(struct perf_evlist *evlist, struct target *target)
+ {
+ 	evlist->threads = thread_map__new_str(target->pid, target->tid,
+@@ -1269,8 +1342,11 @@ int perf_evlist__open(struct perf_evlist *evlist)
+ 
+ 	evlist__for_each(evlist, evsel) {
+ 		err = perf_evsel__open(evsel, evlist->cpus, evlist->threads);
+-		if (err < 0)
++		if (err < 0) {
++			fprintf(stderr, "Error: open event [%s] failed\n",
++				evsel->name);
+ 			goto out_err;
++		}
+ 	}
+ 
+ 	return 0;
+@@ -1423,6 +1499,31 @@ int perf_evlist__parse_sample(struct perf_evlist *evlist, union perf_event *even
+ 	return perf_evsel__parse_sample(evsel, event, sample);
+ }
+ 
++int perf_evlist__parse_sample_v2(struct perf_evlist *evlist,
++				 union perf_event *event,
++				 struct perf_sample *sample,
++				 struct perf_evsel **ret_evsel)
++{
++	struct perf_evsel *evsel = perf_evlist__event2evsel(evlist, event);
++
++	if (!evsel)
++		return -EFAULT;
++	*ret_evsel = evsel;
++	return perf_evsel__parse_sample(evsel, event, sample);
++}
++
++void perf_evlist_foreach(struct perf_evlist *evlist,
++			 void (*func)(struct perf_evlist *evlist,
++				      struct perf_evsel *evsel, void *data),
++			 void *data)
++{
++	struct perf_evsel *evsel;
++
++	evlist__for_each(evlist, evsel) {
++		func(evlist, evsel, data);
++	}
++}
++
+ size_t perf_evlist__fprintf(struct perf_evlist *evlist, FILE *fp)
+ {
+ 	struct perf_evsel *evsel;
+diff --git a/tools/perf/util/evlist.h b/tools/perf/util/evlist.h
+index e99a676..5352a69 100644
+--- a/tools/perf/util/evlist.h
++++ b/tools/perf/util/evlist.h
+@@ -88,6 +88,7 @@ perf_evlist__find_tracepoint_by_name(struct perf_evlist *evlist,
+ void perf_evlist__id_add(struct perf_evlist *evlist, struct perf_evsel *evsel,
+ 			 int cpu, int thread, u64 id);
+ 
++struct pollfd *perf_evlist_pollfd(struct perf_evlist *evlist, int *nr);
+ int perf_evlist__add_pollfd(struct perf_evlist *evlist, int fd);
+ int perf_evlist__alloc_pollfd(struct perf_evlist *evlist);
+ int perf_evlist__filter_pollfd(struct perf_evlist *evlist, short revents_and_mask);
+@@ -99,7 +100,10 @@ struct perf_evsel *perf_evlist__id2evsel(struct perf_evlist *evlist, u64 id);
+ struct perf_sample_id *perf_evlist__id2sid(struct perf_evlist *evlist, u64 id);
+ 
+ union perf_event *perf_evlist__mmap_read(struct perf_evlist *evlist, int idx);
++union perf_event *perf_evlist__mmap_read_top(struct perf_evlist *evlist,
++					     int *idx);
+ 
++int perf_evlist__nr_mmaps(struct perf_evlist *evlist);
+ void perf_evlist__mmap_consume(struct perf_evlist *evlist, int idx);
+ 
+ int perf_evlist__open(struct perf_evlist *evlist);
+@@ -140,13 +144,9 @@ int perf_evlist__enable_event_idx(struct perf_evlist *evlist,
+ void perf_evlist__set_selected(struct perf_evlist *evlist,
+ 			       struct perf_evsel *evsel);
+ 
+-static inline void perf_evlist__set_maps(struct perf_evlist *evlist,
+-					 struct cpu_map *cpus,
+-					 struct thread_map *threads)
+-{
+-	evlist->cpus	= cpus;
+-	evlist->threads	= threads;
+-}
++void perf_evlist__set_maps(struct perf_evlist *evlist,
++			   struct cpu_map *cpus,
++			   struct thread_map *threads);
+ 
+ int perf_evlist__create_maps(struct perf_evlist *evlist, struct target *target);
+ int perf_evlist__apply_filters(struct perf_evlist *evlist);
+@@ -163,6 +163,16 @@ u16 perf_evlist__id_hdr_size(struct perf_evlist *evlist);
+ int perf_evlist__parse_sample(struct perf_evlist *evlist, union perf_event *event,
+ 			      struct perf_sample *sample);
+ 
++int perf_evlist__parse_sample_v2(struct perf_evlist *evlist,
++				 union perf_event *event,
++				 struct perf_sample *sample,
++				 struct perf_evsel **ret_evsel);
++
++void perf_evlist_foreach(struct perf_evlist *evlist,
++			 void (*func)(struct perf_evlist *evlist,
++				      struct perf_evsel *evsel, void *data),
++			 void *data);
++
+ bool perf_evlist__valid_sample_type(struct perf_evlist *evlist);
+ bool perf_evlist__valid_sample_id_all(struct perf_evlist *evlist);
+ bool perf_evlist__valid_read_format(struct perf_evlist *evlist);
+diff --git a/tools/perf/util/evsel.c b/tools/perf/util/evsel.c
+index ea51a90..f3b6dca 100644
+--- a/tools/perf/util/evsel.c
++++ b/tools/perf/util/evsel.c
+@@ -1870,6 +1870,30 @@ void *perf_evsel__rawptr(struct perf_evsel *evsel, struct perf_sample *sample,
+ 	return sample->raw_data + offset;
+ }
+ 
++void *perf_evsel__rawptr_v2(struct event_format *tp_format, void *raw_data,
++			    const char *name)
++{
++	struct format_field *field = pevent_find_field(tp_format, name);
++	int offset;
++
++	if (!field)
++		return NULL;
++
++	offset = field->offset;
++
++	if (field->flags & FIELD_IS_DYNAMIC) {
++		offset = *(int *)(raw_data + field->offset);
++		offset &= 0xffff;
++	}
++
++	return raw_data + offset;
++}
++
++struct event_format *perf_evsel__tp_fmt(struct perf_evsel *evsel)
++{
++	return evsel->tp_format;
++}
++
+ u64 perf_evsel__intval(struct perf_evsel *evsel, struct perf_sample *sample,
+ 		       const char *name)
+ {
+@@ -2146,3 +2170,13 @@ int perf_evsel__open_strerror(struct perf_evsel *evsel, struct target *target,
+ 			 err, strerror_r(err, sbuf, sizeof(sbuf)),
+ 			 perf_evsel__name(evsel));
+ }
++
++void perf_evsel__set_ctype_ref(struct perf_evsel *evsel, int ctype_ref)
++{
++	evsel->ctype_ref = ctype_ref;
++}
++
++int perf_evsel__get_ctype_ref(struct perf_evsel *evsel)
++{
++	return evsel->ctype_ref;
++}
+diff --git a/tools/perf/util/evsel.h b/tools/perf/util/evsel.h
+index 3862274..a43c105 100644
+--- a/tools/perf/util/evsel.h
++++ b/tools/perf/util/evsel.h
+@@ -100,6 +100,7 @@ struct perf_evsel {
+ 	int			sample_read;
+ 	struct perf_evsel	*leader;
+ 	char			*group_name;
++	int			ctype_ref;
+ };
+ 
+ union u64_swap {
+@@ -201,10 +202,17 @@ int perf_evsel__open(struct perf_evsel *evsel, struct cpu_map *cpus,
+ 		     struct thread_map *threads);
+ void perf_evsel__close(struct perf_evsel *evsel, int ncpus, int nthreads);
+ 
++void perf_evsel__set_ctype_ref(struct perf_evsel *evsel, int ctype_ref);
++int perf_evsel__get_ctype_ref(struct perf_evsel *evsel);
++
+ struct perf_sample;
+ 
+ void *perf_evsel__rawptr(struct perf_evsel *evsel, struct perf_sample *sample,
+ 			 const char *name);
++
++void *perf_evsel__rawptr_v2(struct event_format *tp_format, void *raw_data,
++			    const char *name);
++struct event_format *perf_evsel__tp_fmt(struct perf_evsel *evsel);
+ u64 perf_evsel__intval(struct perf_evsel *evsel, struct perf_sample *sample,
+ 		       const char *name);
+ 
