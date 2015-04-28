@@ -274,7 +274,5 @@ bpf.print_hist_map = function(t)
   end
 end
 
-package.preload["bpf"] = function()
-  return bpf
-end
+return bpf
 

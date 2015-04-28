@@ -90,4 +90,4 @@ perf/perf.o: perf/perf.c /usr/include/stdc-predef.h /usr/include/stdio.h \
  /usr/include/asm-generic/ioctl.h \
  /usr/include/x86_64-linux-gnu/asm/byteorder.h \
  /usr/include/linux/byteorder/little_endian.h /usr/include/linux/swab.h \
- /usr/include/x86_64-linux-gnu/asm/swab.h perf/perf_builtin_lua.h
+ /usr/include/x86_64-linux-gnu/asm/swab.h

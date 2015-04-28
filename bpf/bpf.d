@@ -77,4 +77,4 @@ bpf/bpf.o: bpf/bpf.c /usr/include/stdc-predef.h /usr/include/stdio.h \
  /usr/include/x86_64-linux-gnu/bits/sigthread.h \
  core/libuv/include/uv-threadpool.h core/libuv/include/uv-linux.h \
  bpf/bpf_map_index_func.h bpf/bpf_map_newindex_func.h \
- bpf/bpf_map_next_func.h bpf/bpf_builtin_lua.h
+ bpf/bpf_map_next_func.h

@@ -125,6 +125,7 @@ union perf_event {
 	struct lost_event               lost;
 };
 
+int perf_module_init();
 struct perf_evlist *perf_evlist__new(void);
 void perf_evlist__enable(void *evlist);
 void perf_evlist__disable(void *evlist);
@@ -252,6 +253,8 @@ struct sample_read {
 ]]
 
 local perf = {}
+
+C.perf_module_init()
 
 perf.enable = function(evlist)
   C.perf_evlist__enable(evlist)
@@ -746,7 +749,4 @@ shark.add_end_notify(function()
                         stats.callback_sum_time / stats.samples_num))
 end)
 
-package.preload["perf"] = function()
-  return perf
-end
-
+return perf

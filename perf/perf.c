@@ -34,46 +34,20 @@
 #include "perf.h"
 
 extern unsigned int page_size;
-extern lua_State *g_ls;
-
 int use_browser = -1;
 const char perf_version_string[] = "0.1";
 
-/* this function is for luajit ffi can get symbols */
-void dummy()
+void dump()
 {
+	/* for luajit ffi can get symbols */
 	target__validate(NULL);
 	record_opts__config(NULL);
 }
 
-int lua_report(lua_State *ls, int status);
-int lua_traceback(lua_State *ls);
-
-int shark_perf_module_init(lua_State *ls)
+int perf_module_init()
 {
-	int base, ret;
-
-	page_size = sysconf(_SC_PAGE_SIZE);
 	//verbose = 2;
-
-#include "perf_builtin_lua.h"
-	ret = luaL_loadbuffer(ls, luaJIT_BC_perf, luaJIT_BC_perf_SIZE, NULL);
-	if(ret) {
-		ret = lua_report(ls, ret);
-		return -1;
-	}
-
-	base = lua_gettop(ls) - 1;
-	lua_pushcfunction(ls, lua_traceback);
-	lua_insert(ls, base);
-
-	if (lua_pcall(ls, 0, 0, base)) {
-		fprintf(stderr, "%s\n", lua_tostring(ls, -1));
-		exit(EXIT_FAILURE);
-	}
-
-	lua_pop(ls, 1);
-
+	page_size = sysconf(_SC_PAGE_SIZE);
 	return 0;
 }
 

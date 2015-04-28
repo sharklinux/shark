@@ -295,24 +295,14 @@ int main(int argc, char **argv)
 
 	luaL_openlib(ls, "shark", ll_shark, 0);
 
-#include "shark_builtin.h"
-	luaL_loadbuffer(ls, luaJIT_BC_shark, luaJIT_BC_shark_SIZE, NULL);
-	lua_pcall(ls, 0, 0, 0);
-
-	if (shark_bpf_module_init(ls)) {
-		fprintf(stderr, "failed to init bpf module\n");
-		exit(EXIT_FAILURE);
-	}
-
-	if (shark_perf_module_init(ls)) {
-		fprintf(stderr, "failed to init perf module\n");
-		exit(EXIT_FAILURE);
-	}
-
-	g_event_loop = luv_loop(ls);
-
 	int narg = getargs(ls, argv, script);  /* collect arguments */
 	lua_setglobal(ls, "arg");
+
+#include "shark_init.h"
+	luaL_loadbuffer(ls, luaJIT_BC_shark_init, luaJIT_BC_shark_init_SIZE, NULL);
+	lua_pcall(ls, 0, 0, 0);
+
+	g_event_loop = luv_loop(ls);
 
 	if(ret = luaL_loadfile(ls, argv[script])) {
 		ret = lua_report(ls, ret);

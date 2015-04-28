@@ -192,10 +192,6 @@ int shark_create_bpf_map(struct bpf_map_def *maps, int len)
 
 int shark_bpf_module_init(lua_State *ls)
 {
-#include "bpf_builtin_lua.h"
-	luaL_loadbuffer(ls, luaJIT_BC_bpf, luaJIT_BC_bpf_SIZE, NULL);
-	lua_pcall(ls, 0, 0, 0);
-
 	return 0;
 }
 
