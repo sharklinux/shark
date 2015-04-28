@@ -6,10 +6,12 @@ A new event modeled system tracing and monitoring tool
 ## Highlights
 
 1. Rich system tracing and monitoring API
+
    Supported perf and bpf modules
    Will support pcap and more
 
 2. Capture any events in real time
+
    shark can capture any events in real time:
    tcp(udp) packet, syscalls, tracepoints, kprobe, uprobe, function,
    stdin, stdout, http packet, and also high level user specific events.
@@ -18,21 +20,26 @@ A new event modeled system tracing and monitoring tool
    field info, timestamp, stack, process info, etc.
 
 3. Powerful analysis
+
    Powerful and flexible lua script language for event analysis, all lua
    libraries can be use for analysis.
    Easy to build cloud/distributed monitoring
 
 4. Support ebpf scripting
+
    shark already support ebpf, user can access ebpf map as lua table.
 
 5. Fast
+
    Jit everything. luajit and epbf both use JIT to boost execution.
    luajit's speed is as fast as C.
 
 6. Safe
+
    will never crash your system.
 
 7. Easy deployment
+
    No kernel module needed, all is one binary
 
 
