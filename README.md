@@ -38,7 +38,7 @@ A new event modeled system tracing and monitoring tool
 
 ## Prerequisites
 
-#use bpf module
+1. use bpf module
 
         Linux kernel version >= 4.0
         CONFIG_BPF=y
@@ -48,7 +48,7 @@ A new event modeled system tracing and monitoring tool
 
 ##Samples
 
-#perf tracepoint
+1. perf tracepoint
 
         local perf = require("perf")
         local ffi = require("ffi")
@@ -120,6 +120,9 @@ There have some wish list on shark:
 4. More api for analysis(networking, packet, etc)
 
 ## Mailing list
+
+Google groups:
+https://groups.google.com/d/forum/sharklinux
 
 
 ## Copyright and License
