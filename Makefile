@@ -13,13 +13,13 @@ OBJS=core/shark.o core/luv/luv.o bpf/bpf.o perf/perf.o
 BUILTIN_LUA_HEADER = core/shark_builtin.h bpf/bpf_builtin_lua.h perf/perf_builtin_lua.h
 
 #ffi need to call some functions in library, so add -rdynamic option
-$(TARGET) : $(BUILTIN_LUA_HEADER) $(OBJS) core/luajit/src/libluajit.a libuv force
+$(TARGET) : core/luajit/src/libluajit.a core/libuv/.libs/libuv.a $(BUILTIN_LUA_HEADER) $(OBJS) force
 	clang++ -o $(TARGET) -rdynamic $(OBJS) $(LIB)
 
 core/luajit/src/libluajit.a:
 	@cd core/luajit; make
 
-libuv: core/libuv/.libs/libuv.a
+core/libuv/.libs/libuv.a:
 	@cd core/libuv; make
 
 
@@ -29,18 +29,20 @@ DEPS := $(OBJS:.o=.d)
 %.o : %.c
 	$(CC) -MD -g -c $(CFLAGS) $< -o $@
 
+LUAJIT_BIN=core/luajit/src/luajit
+
 core/shark_builtin.h : core/shark.lua
-	luajit -b core/shark.lua core/shark_builtin.h
+	cd core/luajit/src; ./luajit -b ../../shark.lua ../../shark_builtin.h
 
 bpf/bpf_builtin_lua.h : bpf/bpf.lua
-	luajit -b bpf/bpf.lua bpf/bpf_builtin_lua.h
+	cd core/luajit/src; ./luajit -b ../../../bpf/bpf.lua ../../../bpf/bpf_builtin_lua.h
 
 perf/perf_builtin_lua.h : perf/perf.lua
-	luajit -b perf/perf.lua perf/perf_builtin_lua.h
+	cd core/luajit/src; ./luajit -b ../../../perf/perf.lua ../../../perf/perf_builtin_lua.h
 
 force:
 	true
 
 clean:
-	@rm -rf $(TARGET) *.d *.o core/*.d core/*.o
+	@rm -rf $(TARGET) *.d *.o core/*.d core/*.o core/shark_builtin.h bpf/bpf_builtin_lua.h perf/perf_builtin_lua.h
 
