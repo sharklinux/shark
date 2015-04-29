@@ -36,6 +36,37 @@ index aa6a504..54caada 100644
  # Define NO_LIBBIONIC if you do not want bionic support
  #
  # Define NO_LIBDW_DWARF_UNWIND if you do not want libdw support
+diff --git a/tools/perf/util/callchain.c b/tools/perf/util/callchain.c
+index 14e7a12..cd02406 100644
+--- a/tools/perf/util/callchain.c
++++ b/tools/perf/util/callchain.c
+@@ -53,6 +53,15 @@ static int get_stack_size(const char *str, unsigned long *_size)
+ }
+ #endif /* HAVE_DWARF_UNWIND_SUPPORT */
+ 
++void perf_callchain_enable(void)
++{
++	callchain_param.enabled = true;
++
++	if (callchain_param.record_mode == CALLCHAIN_NONE)
++		callchain_param.record_mode = CALLCHAIN_FP;
++}
++
++
+ int parse_callchain_record_opt(const char *arg)
+ {
+ 	char *tok, *name, *saveptr = NULL;
+diff --git a/tools/perf/util/callchain.h b/tools/perf/util/callchain.h
+index c0ec1ac..2401963 100644
+--- a/tools/perf/util/callchain.h
++++ b/tools/perf/util/callchain.h
+@@ -199,5 +199,6 @@ char *callchain_list__sym_name(struct callchain_list *cl,
+ 			       char *bf, size_t bfsize, bool show_dso);
+ 
+ void free_callchain(struct callchain_root *root);
++void perf_callchain_enable(void);
+ 
+ #endif	/* __PERF_CALLCHAIN_H */
 diff --git a/tools/perf/util/evlist.c b/tools/perf/util/evlist.c
 index 28b8ce8..4669790 100644
 --- a/tools/perf/util/evlist.c

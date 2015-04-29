@@ -58,6 +58,7 @@ struct shark_perf_config {
 	const char *target_cpu_list;
 	const char *filter;
 	int read_events_rate;
+	int callchain;
 };
 
 struct target {
@@ -126,6 +127,7 @@ union perf_event {
 };
 
 int perf_module_init();
+void perf_callchain_enable(void);
 struct perf_evlist *perf_evlist__new(void);
 void perf_evlist__enable(void *evlist);
 void perf_evlist__disable(void *evlist);
@@ -577,14 +579,14 @@ local function mmap_read_consume(evlist, callback, max_nr_read)
     perf_sample.name = C.perf_evsel__name(evsel)
 
     local tp_fmt = C.perf_evsel__tp_fmt(evsel)
-    if tp_fmt == nil then
-      callback(perf_sample)
-    else
+    if tp_fmt ~= nil then
       --TODO: use ref is more faster than lua table?
       local ctype_ref = C.perf_evsel__get_ctype_ref(evsel)
       local ctype = shark_get_ref(ctype_ref)
       local sample_event = ffi_cast(ctype, perf_sample)
       callback(sample_event)
+    else
+      callback(perf_sample)
     end
 
     C.perf_evlist__mmap_consume(evlist, idx)
@@ -609,6 +611,10 @@ local function open_perf_event(str, config, callback)
   opts.target.pid = config.target_pid
   opts.target.tid = config.target_tid
   opts.target.cpu_list = config.target_cpu_list
+
+  if config.callchain == 1 then
+    C.perf_callchain_enable()
+  end
 
   evlist = C.perf_evlist__new()
 
@@ -752,10 +758,29 @@ shark.add_end_notify(function()
     stats.flush_num = stats.flush_num + stats.samples_num - prev_samples_num
   end
 
-  print(string.format("shark: Woken up %d times, flushed %d events, losted %d events, total %d sample events, avg event process time is %d msec",
+  print(string.format("shark: Woken up %d times, flushed %d events, losted %d events, total %d sample events, avg event process time is %d usec",
                         stats.wakeup_num, stats.flush_num,
                         stats.lost_num, stats.samples_num,
                         stats.callback_sum_time / stats.samples_num))
 end)
+
+--[[
+local perf_record_tbl = {}
+
+local sizeof_sample = ffi.sizeof("struct perf_sample")
+
+-- perf.record will consume about 6us
+perf.record = function(e)
+  local sample = ffi.new("struct perf_sample")
+  ffi.copy(sample, e, sizeof_sample)
+  table.insert(perf_record_tbl, sample)
+end
+
+perf.report = function()
+  for k, v in pairs(perf_record_tbl) do
+    print(k, v)
+  end
+end
+--]]
 
 return perf
