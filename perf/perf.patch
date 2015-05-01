@@ -37,10 +37,10 @@ index aa6a504..54caada 100644
  #
  # Define NO_LIBDW_DWARF_UNWIND if you do not want libdw support
 diff --git a/tools/perf/util/callchain.c b/tools/perf/util/callchain.c
-index 14e7a12..cd02406 100644
+index 14e7a12..1497df4 100644
 --- a/tools/perf/util/callchain.c
 +++ b/tools/perf/util/callchain.c
-@@ -53,6 +53,15 @@ static int get_stack_size(const char *str, unsigned long *_size)
+@@ -53,6 +53,95 @@ static int get_stack_size(const char *str, unsigned long *_size)
  }
  #endif /* HAVE_DWARF_UNWIND_SUPPORT */
  
@@ -52,20 +52,103 @@ index 14e7a12..cd02406 100644
 +		callchain_param.record_mode = CALLCHAIN_FP;
 +}
 +
++const char *perf_callchain_backtrace(union perf_event *event,
++				     struct perf_sample *sample,
++				     struct machine *machine)
++{
++	struct addr_location al;
++	unsigned int i;
++	char *p = NULL;
++	size_t p_len;
++	u8 cpumode = PERF_RECORD_MISC_USER;
++	struct addr_location tal;
++	struct ip_callchain *chain = sample->callchain;
++	FILE *f = open_memstream(&p, &p_len);
++
++	if (!f) {
++		perror("open_memstream error");
++		return NULL;
++	}
++
++	if (!chain) {
++		p = NULL;
++		goto exit;
++	}
++
++	if (perf_event__preprocess_sample(event, machine, &al, sample) < 0) {
++		fprintf(stderr, "problem processing %d event, skipping it.\n",
++			event->header.type);
++		goto exit;
++	}
++
++	for (i = 0; i < chain->nr; i++) {
++		u64 ip;
++
++		if (callchain_param.order == ORDER_CALLEE)
++			ip = chain->ips[i];
++		else
++			ip = chain->ips[chain->nr - i - 1];
++
++		if (ip >= PERF_CONTEXT_MAX) {
++			switch (ip) {
++			case PERF_CONTEXT_HV:
++				cpumode = PERF_RECORD_MISC_HYPERVISOR;
++				break;
++			case PERF_CONTEXT_KERNEL:
++				cpumode = PERF_RECORD_MISC_KERNEL;
++				break;
++			case PERF_CONTEXT_USER:
++				cpumode = PERF_RECORD_MISC_USER;
++				break;
++			default:
++				pr_debug("invalid callchain context: "
++					 "%"PRId64"\n", (s64) ip);
++
++				/*
++				 * It seems the callchain is corrupted.
++				 * Discard all.
++				 */
++				zfree(&p);
++				goto exit;
++			}
++			continue;
++		}
++
++		tal.filtered = 0;
++		thread__find_addr_location(al.thread, cpumode,
++					   MAP__FUNCTION, ip, &tal);
++
++		if (tal.sym)
++			//fprintf(f, "..... %016" PRIx64 " %s\n", ip,
++			//	tal.sym->name);
++			fprintf(f, "%s\n", tal.sym->name);
++		else
++			//fprintf(f, "..... %016" PRIx64 "\n", ip);
++			fprintf(f, "%016" PRIx64 "\n", ip);
++	}
++
++exit:
++	fclose(f);
++
++	return p;
++}
 +
  int parse_callchain_record_opt(const char *arg)
  {
  	char *tok, *name, *saveptr = NULL;
 diff --git a/tools/perf/util/callchain.h b/tools/perf/util/callchain.h
-index c0ec1ac..2401963 100644
+index c0ec1ac..2ea02c6 100644
 --- a/tools/perf/util/callchain.h
 +++ b/tools/perf/util/callchain.h
-@@ -199,5 +199,6 @@ char *callchain_list__sym_name(struct callchain_list *cl,
+@@ -199,5 +199,8 @@ char *callchain_list__sym_name(struct callchain_list *cl,
  			       char *bf, size_t bfsize, bool show_dso);
  
  void free_callchain(struct callchain_root *root);
+-
 +void perf_callchain_enable(void);
- 
++const char *perf_callchain_backtrace(union perf_event *event,
++				     struct perf_sample *sample,
++				     struct machine *machine);
  #endif	/* __PERF_CALLCHAIN_H */
 diff --git a/tools/perf/util/evlist.c b/tools/perf/util/evlist.c
 index 28b8ce8..4669790 100644
@@ -282,10 +365,24 @@ index e99a676..5352a69 100644
  bool perf_evlist__valid_sample_id_all(struct perf_evlist *evlist);
  bool perf_evlist__valid_read_format(struct perf_evlist *evlist);
 diff --git a/tools/perf/util/evsel.c b/tools/perf/util/evsel.c
-index ea51a90..f3b6dca 100644
+index ea51a90..c27bab6 100644
 --- a/tools/perf/util/evsel.c
 +++ b/tools/perf/util/evsel.c
-@@ -1870,6 +1870,30 @@ void *perf_evsel__rawptr(struct perf_evsel *evsel, struct perf_sample *sample,
+@@ -180,6 +180,13 @@ void __perf_evsel__reset_sample_bit(struct perf_evsel *evsel,
+ 	}
+ }
+ 
++void perf_evsel__set_callchain(struct perf_evsel *evsel, bool callchain_k,
++			       bool callchain_u)
++{
++	evsel->attr.exclude_callchain_kernel = !callchain_k;
++	evsel->attr.exclude_callchain_user = !callchain_u;
++}
++
+ void perf_evsel__set_sample_id(struct perf_evsel *evsel,
+ 			       bool can_sample_identifier)
+ {
+@@ -1870,6 +1877,30 @@ void *perf_evsel__rawptr(struct perf_evsel *evsel, struct perf_sample *sample,
  	return sample->raw_data + offset;
  }
  
@@ -316,7 +413,7 @@ index ea51a90..f3b6dca 100644
  u64 perf_evsel__intval(struct perf_evsel *evsel, struct perf_sample *sample,
  		       const char *name)
  {
-@@ -2146,3 +2170,13 @@ int perf_evsel__open_strerror(struct perf_evsel *evsel, struct target *target,
+@@ -2146,3 +2177,13 @@ int perf_evsel__open_strerror(struct perf_evsel *evsel, struct target *target,
  			 err, strerror_r(err, sbuf, sizeof(sbuf)),
  			 perf_evsel__name(evsel));
  }
@@ -331,7 +428,7 @@ index ea51a90..f3b6dca 100644
 +	return evsel->ctype_ref;
 +}
 diff --git a/tools/perf/util/evsel.h b/tools/perf/util/evsel.h
-index 3862274..a43c105 100644
+index 3862274..df76847 100644
 --- a/tools/perf/util/evsel.h
 +++ b/tools/perf/util/evsel.h
 @@ -100,6 +100,7 @@ struct perf_evsel {
@@ -342,7 +439,17 @@ index 3862274..a43c105 100644
  };
  
  union u64_swap {
-@@ -201,10 +202,17 @@ int perf_evsel__open(struct perf_evsel *evsel, struct cpu_map *cpus,
+@@ -186,6 +187,9 @@ void __perf_evsel__reset_sample_bit(struct perf_evsel *evsel,
+ #define perf_evsel__reset_sample_bit(evsel, bit) \
+ 	__perf_evsel__reset_sample_bit(evsel, PERF_SAMPLE_##bit)
+ 
++void perf_evsel__set_callchain(struct perf_evsel *evsel, bool callchain_k,
++			       bool callchain_u);
++
+ void perf_evsel__set_sample_id(struct perf_evsel *evsel,
+ 			       bool use_sample_identifier);
+ 
+@@ -201,10 +205,17 @@ int perf_evsel__open(struct perf_evsel *evsel, struct cpu_map *cpus,
  		     struct thread_map *threads);
  void perf_evsel__close(struct perf_evsel *evsel, int ncpus, int nthreads);
  
@@ -360,3 +467,51 @@ index 3862274..a43c105 100644
  u64 perf_evsel__intval(struct perf_evsel *evsel, struct perf_sample *sample,
  		       const char *name);
  
+diff --git a/tools/perf/util/session.c b/tools/perf/util/session.c
+index 0baf75f..1db25db 100644
+--- a/tools/perf/util/session.c
++++ b/tools/perf/util/session.c
+@@ -1762,3 +1762,29 @@ out_err:
+ 
+ 	return err;
+ }
++
++struct perf_session *perf_session__init(struct perf_evlist *evlist,
++					struct record_opts *opts)
++{
++	struct perf_session *session;
++
++	symbol__init(NULL);
++
++	session = perf_session__new(NULL, false, NULL);
++	if (session == NULL)
++		return NULL;
++
++	machine__synthesize_threads(&session->machines.host, &opts->target,
++				    evlist->threads, false);
++
++	session->evlist = evlist;
++	perf_session__set_id_hdr_size(session);
++
++	return session;
++}
++
++struct machine *perf_session__get_machine(struct perf_session *session)
++{
++	return &session->machines.host;
++}
++
+diff --git a/tools/perf/util/session.h b/tools/perf/util/session.h
+index 6d663dc..dca0981 100644
+--- a/tools/perf/util/session.h
++++ b/tools/perf/util/session.h
+@@ -138,4 +138,9 @@ int perf_event__synthesize_id_index(struct perf_tool *tool,
+ 				    struct perf_evlist *evlist,
+ 				    struct machine *machine);
+ 
++struct perf_session *perf_session__init(struct perf_evlist *evlist,
++					struct record_opts *opts);
++
++struct machine *perf_session__get_machine(struct perf_session *session);
++
+ #endif /* __PERF_SESSION_H */

@@ -1,8 +1,12 @@
 local perf = require("perf")
 
-perf.on("cpu-clock", {callchain = 1}, function(e)
-  print(e.callchain.nr)
+local profile = {}
+setmetatable(profile, {__index = function() return 0 end})
+
+perf.on("cpu-clock", {callchain_k = 1}, function(e)
+  profile[e.callchain] = profile[e.callchain] + 1
 end)
 
 shark.on_end(function()
+  print_hist_raw(profile)
 end)

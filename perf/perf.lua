@@ -49,6 +49,13 @@ typedef int64_t __int64_t;
 
 typedef unsigned int uid_t;
 
+/* struct perf_handle is design for shark */
+struct perf_handle {
+	struct perf_evlist *evlist;
+	struct perf_session *session;
+	struct machine *machine;
+};
+
 struct shark_perf_config {
 	int no_buffering;
 	int wake_events;
@@ -58,7 +65,8 @@ struct shark_perf_config {
 	const char *target_cpu_list;
 	const char *filter;
 	int read_events_rate;
-	int callchain;
+	int callchain_k;
+	int callchain_u;
 };
 
 struct target {
@@ -153,6 +161,16 @@ int perf_evlist__parse_sample_v2(struct perf_evlist *evlist,
                                  union perf_event *event,
                                  struct perf_sample *sample,
                                  struct perf_evsel **ret_evsel);
+const char *perf_callchain_backtrace(union perf_event *event,
+                                     struct perf_sample *sample,
+                                     struct machine *machine);
+struct perf_session *perf_session__init(struct perf_evlist *evlist,
+                                        struct record_opts *opts);
+int machine__process_event(struct machine *machine, union perf_event *event,
+                           struct perf_sample *sample);
+struct machine *perf_session__get_machine(struct perf_session *session);
+void perf_evsel__set_callchain(struct perf_evsel *evsel, bool callchain_k,
+                               bool callchain_u);
 
 struct pollfd {
 	int fd;
@@ -410,7 +428,7 @@ struct %s {
     void *raw_data;
     struct %s *raw;
   };
-  struct ip_callchain *callchain;
+  struct ip_callchain *_callchain;
   struct branch_stack *branch_stack;
   struct regs_dump  user_regs;
   struct regs_dump  intr_regs;
@@ -418,14 +436,39 @@ struct %s {
   struct sample_read read;
 
   const char *name; /* event name added for e.name */
+  struct perf_handle *handle; /* handle of this sample event */
+  union perf_event *event; /*original event pointer*/
 };]]
 
+
+--define "struct perf_sample" for events without format, like cpu-clock. 
 ffi.cdef(string.format(perf_sample_struct_fmt, "perf_sample", "{}"))
 
+local ctype_perf_sample = ffi.typeof("struct perf_sample *")
+
+local ct_metatable_sample = {
+  __index = function(sample, key)
+    if key == "callchain" then
+      local cast_sample = ffi.cast(ctype_perf_sample, sample)
+      local callchain = C.perf_callchain_backtrace(sample.event, cast_sample,
+                                                   sample.handle.machine)
+      if callchain == nil then
+        return nil
+      end
+      return ffi.string(callchain)
+    else
+      print(string.format("error: struct perf_sample don't have field \"%s\"\n",
+            name))
+      os.exit(-1)
+    end
+  end
+}
+
+ffi.metatype("struct perf_sample", ct_metatable_sample)
 
 local ctype_fmt_tbl = {}
 
-local ct_metatable = {
+local ct_metatable_raw = {
   -- Note that __index metamethod is only used for read dynamic field.
   -- there have some issue when save ctype as table key, so use string as key
   __index = function(raw_cdata, name)
@@ -501,7 +544,7 @@ local function load_event_ctype(tp_fmt, str)
   local ctype = ffi.typeof("struct " .. event_struct_name .. "*")
   ctype_fmt_tbl[tostring(ctype)] = tp_fmt
 
-  ffi.metatype("struct " .. event_struct_name, ct_metatable)
+  ffi.metatype("struct " .. event_struct_name, ct_metatable_raw)
 
   local sample_struct_name = "perf_sample_" .. event_struct_name
   local perf_sample_struct_def = string.format(perf_sample_struct_fmt,
@@ -509,6 +552,9 @@ local function load_event_ctype(tp_fmt, str)
                                                event_struct_name)
   ffi.cdef(perf_sample_struct_def)
   --print(perf_sample_struct_def)
+
+  ffi.metatype("struct " .. sample_struct_name, ct_metatable_sample)
+
   return ffi.typeof("struct " .. sample_struct_name .. " *")
 end
 
@@ -541,9 +587,11 @@ local idx_ret = ffi.new("int [1]")
 local perf_sample = ffi.new("struct perf_sample")
 local evsel_ret = ffi.new("struct perf_evsel *[1]")
 
-local function mmap_read_consume(evlist, callback, max_nr_read)
+local function mmap_read_consume(handle, evlist, callback, max_nr_read)
   local nr_read = 0
   local ret
+
+  perf_sample.handle = handle
 
   while nr_read < max_nr_read do
     nr_read = nr_read + 1
@@ -556,15 +604,6 @@ local function mmap_read_consume(evlist, callback, max_nr_read)
 
     local idx = idx_ret[0]
 
-    if event.header.type == C.PERF_RECORD_LOST then
-      stats.lost_num = stats.lost_num + tonumber(event.lost.lost)
-    end
-
-    if event.header.type ~= C.PERF_RECORD_SAMPLE then
-      C.perf_evlist__mmap_consume(evlist, idx)
-      goto retry
-    end
-
     ret = C.perf_evlist__parse_sample_v2(evlist, event, perf_sample, evsel_ret)
     if ret ~= 0 then
       print("perf_evlist__parse_sample failed")
@@ -574,24 +613,30 @@ local function mmap_read_consume(evlist, callback, max_nr_read)
 
     local evsel = evsel_ret[0]
 
-    stats.samples_num = stats.samples_num + 1
+    if event.header.type == C.PERF_RECORD_SAMPLE then
+      stats.samples_num = stats.samples_num + 1
 
-    perf_sample.name = C.perf_evsel__name(evsel)
+      perf_sample.name = C.perf_evsel__name(evsel)
+      perf_sample.event = event --save it for metatable use
 
-    local tp_fmt = C.perf_evsel__tp_fmt(evsel)
-    if tp_fmt ~= nil then
-      --TODO: use ref is more faster than lua table?
-      local ctype_ref = C.perf_evsel__get_ctype_ref(evsel)
-      local ctype = shark_get_ref(ctype_ref)
-      local sample_event = ffi_cast(ctype, perf_sample)
-      callback(sample_event)
+      local tp_fmt = C.perf_evsel__tp_fmt(evsel)
+      if tp_fmt ~= nil then
+        --TODO: use ref is more faster than lua table?
+        local ctype_ref = C.perf_evsel__get_ctype_ref(evsel)
+        local ctype = shark_get_ref(ctype_ref)
+        local sample_event = ffi_cast(ctype, perf_sample)
+        callback(sample_event)
+      else
+        callback(perf_sample)
+      end
     else
-      callback(perf_sample)
+      if event.header.type == C.PERF_RECORD_LOST then
+        stats.lost_num = stats.lost_num + tonumber(event.lost.lost)
+      end
+      --C.machine__process_event(handle.machine, event, perf_sample)
     end
 
     C.perf_evlist__mmap_consume(evlist, idx)
-
- ::retry::
   end
 end
 
@@ -603,7 +648,7 @@ local function open_perf_event(str, config, callback)
   opts.user_freq = -1
   opts.user_interval = -1
   opts.freq = 4000
-  opts.no_buffering = true
+  opts.no_buffering = config.no_buffering
   opts.raw_samples = true
   opts.target.system_wide = true
   opts.target.uses_mmap = true
@@ -612,7 +657,7 @@ local function open_perf_event(str, config, callback)
   opts.target.tid = config.target_tid
   opts.target.cpu_list = config.target_cpu_list
 
-  if config.callchain == 1 then
+  if config.callchain_k or config.callchain_u then
     C.perf_callchain_enable()
   end
 
@@ -653,6 +698,8 @@ local function open_perf_event(str, config, callback)
     C.__perf_evsel__set_sample_bit(evsel, C.PERF_SAMPLE_RAW);
     C.__perf_evsel__set_sample_bit(evsel, C.PERF_SAMPLE_STREAM_ID);
     C.__perf_evsel__set_sample_bit(evsel, C.PERF_SAMPLE_IDENTIFIER);
+ 
+    C.perf_evsel__set_callchain(evsel, config.callchain_k, config.callchain_u)
 
     local tp_fmt = C.perf_evsel__tp_fmt(evsel)
     if tp_fmt == nil then
@@ -685,6 +732,17 @@ local function open_perf_event(str, config, callback)
     return nil
   end
 
+  local session = C.perf_session__init(evlist, opts)
+  if session == nil then
+     print("perf_session__new failed")
+     return nil
+  end
+
+  handle = ffi.new("struct perf_handle")
+  handle.evlist = evlist
+  handle.session = session
+  handle.machine = C.perf_session__get_machine(session)
+ 
   local nret = ffi.new("int [1]")
   local pollfd = C.perf_evlist_pollfd(evlist, nret)
   local nr = nret[0]
@@ -693,7 +751,8 @@ local function open_perf_event(str, config, callback)
     stats.wakeup_num = stats.wakeup_num + 1
 
     local begin = gettimeofday()
-    mmap_read_consume(evlist, callback, perf_default_config.read_events_rate)
+    mmap_read_consume(handle, evlist, callback,
+                      perf_default_config.read_events_rate)
     stats.callback_sum_time = stats.callback_sum_time + gettimeofday() - begin
   end
 
@@ -705,10 +764,10 @@ local function open_perf_event(str, config, callback)
   --Do not enable events in here, we should enable events after all
   --events be added in libuv, we use a timer callback to enable events.
 
-  return evlist
+  return handle
 end
 
-local evlist_tbl = {}
+local perf_handle_tbl = {}
 
 perf.on = function(str, ...) --(str, [opts], callback)
   local nargs = select('#', ...)
@@ -734,27 +793,31 @@ perf.on = function(str, ...) --(str, [opts], callback)
     os.exit(-1)
   end
 
-  local evlist = open_perf_event(str, config, cb)
+  local handle = open_perf_event(str, config, cb)
+  if handle == nil then
+    os.exit(-1)
+  end
+
+  perf_handle_tbl[handle] = cb
+
   -- force enable perf events after epoll_ctrl fd added
   -- this can prevent mmap buffer flush full before start polling
   set_timeout(function()
       set_timeout(function()
-        perf.enable(evlist)
+        perf.enable(handle.evlist)
       end, 1)
   end, 0)
-
-  evlist_tbl[evlist] = cb
 
   return evlist
 end
 
 shark.add_end_notify(function()
   -- disable all evlists
-  for evlist,callback in pairs(evlist_tbl) do
-    C.perf_evlist__disable(evlist)
+  for handle, callback in pairs(perf_handle_tbl) do
+    C.perf_evlist__disable(handle.evlist)
 
     local prev_samples_num = stats.samples_num
-    mmap_read_consume(evlist, callback, 4294967295ULL)
+    mmap_read_consume(handle, handle.evlist, callback, 4294967295ULL)
     stats.flush_num = stats.flush_num + stats.samples_num - prev_samples_num
   end
 
@@ -763,24 +826,5 @@ shark.add_end_notify(function()
                         stats.lost_num, stats.samples_num,
                         stats.callback_sum_time / stats.samples_num))
 end)
-
---[[
-local perf_record_tbl = {}
-
-local sizeof_sample = ffi.sizeof("struct perf_sample")
-
--- perf.record will consume about 6us
-perf.record = function(e)
-  local sample = ffi.new("struct perf_sample")
-  ffi.copy(sample, e, sizeof_sample)
-  table.insert(perf_record_tbl, sample)
-end
-
-perf.report = function()
-  for k, v in pairs(perf_record_tbl) do
-    print(k, v)
-  end
-end
---]]
 
 return perf

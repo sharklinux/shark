@@ -5,3 +5,7 @@ in any environment.
 
 Note that shark tools will distributed with binary, active maintained, it's NOT 
 samples.
+
+TODO: move to seperart repo, and standalone package.
+yum install shark-tools
+apt-get install shark-tools
