@@ -151,7 +151,7 @@ index c0ec1ac..2ea02c6 100644
 +				     struct machine *machine);
  #endif	/* __PERF_CALLCHAIN_H */
 diff --git a/tools/perf/util/evlist.c b/tools/perf/util/evlist.c
-index 28b8ce8..4669790 100644
+index 28b8ce8..cc66900 100644
 --- a/tools/perf/util/evlist.c
 +++ b/tools/perf/util/evlist.c
 @@ -432,6 +432,7 @@ int perf_evlist__alloc_pollfd(struct perf_evlist *evlist)
@@ -176,7 +176,7 @@ index 28b8ce8..4669790 100644
  static void perf_evlist__munmap_filtered(struct fdarray *fda, int fd)
  {
  	struct perf_evlist *evlist = container_of(fda, struct perf_evlist, pollfd);
-@@ -632,6 +640,58 @@ static struct perf_evsel *perf_evlist__event2evsel(struct perf_evlist *evlist,
+@@ -632,6 +640,48 @@ static struct perf_evsel *perf_evlist__event2evsel(struct perf_evlist *evlist,
  	return NULL;
  }
  
@@ -186,7 +186,6 @@ index 28b8ce8..4669790 100644
 +	union perf_event *event;
 +	union perf_event *top_event = NULL;
 +	u64 top_time = -1;
-+	struct perf_sample sample;
 +	
 +	int i;
 +
@@ -200,19 +199,11 @@ index 28b8ce8..4669790 100644
 +
 +		md->prev = old;
 +
-+		if (event->header.type != PERF_RECORD_SAMPLE) {
-+			top_event = event;
-+			*idx = i;
-+			goto out;
-+		}
-+
-+		if (perf_evlist__parse_sample(evlist, event, &sample)) {
-+			fprintf(stderr, "perf_evlist__parse_sample failed\n");
++		if (perf_evlist__parse_time(evlist, event, &time)) {
++			fprintf(stderr, "perf_evlist__parse_time failed\n");
 +			perf_evlist__mmap_consume(evlist, i);
 +			continue;
 +		}
-+
-+		time = sample.time;
 +
 +		if (time < top_time) {
 +			top_time = time;
@@ -221,7 +212,6 @@ index 28b8ce8..4669790 100644
 +		}
 +	}
 +
-+ out:
 +	if (top_event) {
 +		event = perf_evlist__mmap_read(evlist, *idx);
 +		if (event != top_event)
@@ -235,7 +225,7 @@ index 28b8ce8..4669790 100644
  union perf_event *perf_evlist__mmap_read(struct perf_evlist *evlist, int idx)
  {
  	struct perf_mmap *md = &evlist->mmap[idx];
-@@ -712,6 +772,11 @@ static void perf_evlist__mmap_put(struct perf_evlist *evlist, int idx)
+@@ -712,6 +762,11 @@ static void perf_evlist__mmap_put(struct perf_evlist *evlist, int idx)
  		__perf_evlist__munmap(evlist, idx);
  }
  
@@ -247,7 +237,7 @@ index 28b8ce8..4669790 100644
  void perf_evlist__mmap_consume(struct perf_evlist *evlist, int idx)
  {
  	struct perf_mmap *md = &evlist->mmap[idx];
-@@ -1027,6 +1092,14 @@ int perf_evlist__mmap(struct perf_evlist *evlist, unsigned int pages,
+@@ -1027,6 +1082,14 @@ int perf_evlist__mmap(struct perf_evlist *evlist, unsigned int pages,
  	return perf_evlist__mmap_per_cpu(evlist, &mp);
  }
  
@@ -262,7 +252,7 @@ index 28b8ce8..4669790 100644
  int perf_evlist__create_maps(struct perf_evlist *evlist, struct target *target)
  {
  	evlist->threads = thread_map__new_str(target->pid, target->tid,
-@@ -1269,8 +1342,11 @@ int perf_evlist__open(struct perf_evlist *evlist)
+@@ -1269,8 +1332,11 @@ int perf_evlist__open(struct perf_evlist *evlist)
  
  	evlist__for_each(evlist, evsel) {
  		err = perf_evsel__open(evsel, evlist->cpus, evlist->threads);
@@ -275,10 +265,20 @@ index 28b8ce8..4669790 100644
  	}
  
  	return 0;
-@@ -1423,6 +1499,31 @@ int perf_evlist__parse_sample(struct perf_evlist *evlist, union perf_event *even
+@@ -1423,6 +1489,41 @@ int perf_evlist__parse_sample(struct perf_evlist *evlist, union perf_event *even
  	return perf_evsel__parse_sample(evsel, event, sample);
  }
  
++int perf_evlist__parse_time(struct perf_evlist *evlist, union perf_event *event,
++			    u64 *time)
++{
++	struct perf_evsel *evsel = perf_evlist__event2evsel(evlist, event);
++
++	if (!evsel)
++		return -EFAULT;
++	return perf_evsel__parse_time(evsel, event, time);
++}
++
 +int perf_evlist__parse_sample_v2(struct perf_evlist *evlist,
 +				 union perf_event *event,
 +				 struct perf_sample *sample,
@@ -308,7 +308,7 @@ index 28b8ce8..4669790 100644
  {
  	struct perf_evsel *evsel;
 diff --git a/tools/perf/util/evlist.h b/tools/perf/util/evlist.h
-index e99a676..5352a69 100644
+index e99a676..6acf5dc 100644
 --- a/tools/perf/util/evlist.h
 +++ b/tools/perf/util/evlist.h
 @@ -88,6 +88,7 @@ perf_evlist__find_tracepoint_by_name(struct perf_evlist *evlist,
@@ -347,10 +347,13 @@ index e99a676..5352a69 100644
  
  int perf_evlist__create_maps(struct perf_evlist *evlist, struct target *target);
  int perf_evlist__apply_filters(struct perf_evlist *evlist);
-@@ -163,6 +163,16 @@ u16 perf_evlist__id_hdr_size(struct perf_evlist *evlist);
+@@ -163,6 +163,19 @@ u16 perf_evlist__id_hdr_size(struct perf_evlist *evlist);
  int perf_evlist__parse_sample(struct perf_evlist *evlist, union perf_event *event,
  			      struct perf_sample *sample);
  
++int perf_evlist__parse_time(struct perf_evlist *evlist, union perf_event *event,
++			    u64 *time);
++
 +int perf_evlist__parse_sample_v2(struct perf_evlist *evlist,
 +				 union perf_event *event,
 +				 struct perf_sample *sample,
@@ -365,7 +368,7 @@ index e99a676..5352a69 100644
  bool perf_evlist__valid_sample_id_all(struct perf_evlist *evlist);
  bool perf_evlist__valid_read_format(struct perf_evlist *evlist);
 diff --git a/tools/perf/util/evsel.c b/tools/perf/util/evsel.c
-index ea51a90..c27bab6 100644
+index ea51a90..b9a7ea7 100644
 --- a/tools/perf/util/evsel.c
 +++ b/tools/perf/util/evsel.c
 @@ -180,6 +180,13 @@ void __perf_evsel__reset_sample_bit(struct perf_evsel *evsel,
@@ -382,7 +385,60 @@ index ea51a90..c27bab6 100644
  void perf_evsel__set_sample_id(struct perf_evsel *evsel,
  			       bool can_sample_identifier)
  {
-@@ -1870,6 +1877,30 @@ void *perf_evsel__rawptr(struct perf_evsel *evsel, struct perf_sample *sample,
+@@ -1552,6 +1559,52 @@ int perf_evsel__parse_sample(struct perf_evsel *evsel, union perf_event *event,
+ 	return 0;
+ }
+ 
++/* for shark */
++int perf_evsel__parse_time(struct perf_evsel *evsel, union perf_event *event,
++			   u64 *time)
++{
++	u64 type = evsel->attr.sample_type;
++	const u64 *array;
++
++	if (event->header.type != PERF_RECORD_SAMPLE) {
++		struct perf_sample data;
++		int ret;
++
++		if (!evsel->attr.sample_id_all)
++			return 0;
++		data.time = -1ULL;
++		ret = perf_evsel__parse_id_sample(evsel, event, &data);
++		*time = data.time;
++		return ret;
++	}
++
++	array = event->sample.array;
++
++	/*
++	 * The evsel's sample_size is based on PERF_SAMPLE_MASK which includes
++	 * up to PERF_SAMPLE_PERIOD.  After that overflow() must be used to
++	 * check the format does not go past the end of the event.
++	 */
++	if (evsel->sample_size + sizeof(event->header) > event->header.size)
++		return -EFAULT;
++
++	if (type & PERF_SAMPLE_IDENTIFIER)
++		array++;
++
++	if (type & PERF_SAMPLE_IP)
++		array++;
++
++	if (type & PERF_SAMPLE_TID)
++		array++;
++
++	/* it must enabled PERF_SAMPLE_TIME */
++	if (type & PERF_SAMPLE_TIME) {
++		*time = *array;
++	}
++
++	return 0;
++}
++
+ size_t perf_event__sample_event_size(const struct perf_sample *sample, u64 type,
+ 				     u64 read_format)
+ {
+@@ -1870,6 +1923,30 @@ void *perf_evsel__rawptr(struct perf_evsel *evsel, struct perf_sample *sample,
  	return sample->raw_data + offset;
  }
  
@@ -413,7 +469,7 @@ index ea51a90..c27bab6 100644
  u64 perf_evsel__intval(struct perf_evsel *evsel, struct perf_sample *sample,
  		       const char *name)
  {
-@@ -2146,3 +2177,13 @@ int perf_evsel__open_strerror(struct perf_evsel *evsel, struct target *target,
+@@ -2146,3 +2223,13 @@ int perf_evsel__open_strerror(struct perf_evsel *evsel, struct target *target,
  			 err, strerror_r(err, sbuf, sizeof(sbuf)),
  			 perf_evsel__name(evsel));
  }
@@ -428,7 +484,7 @@ index ea51a90..c27bab6 100644
 +	return evsel->ctype_ref;
 +}
 diff --git a/tools/perf/util/evsel.h b/tools/perf/util/evsel.h
-index 3862274..df76847 100644
+index 3862274..3b98957 100644
 --- a/tools/perf/util/evsel.h
 +++ b/tools/perf/util/evsel.h
 @@ -100,6 +100,7 @@ struct perf_evsel {
@@ -467,6 +523,16 @@ index 3862274..df76847 100644
  u64 perf_evsel__intval(struct perf_evsel *evsel, struct perf_sample *sample,
  		       const char *name);
  
+@@ -275,6 +286,9 @@ static inline int perf_evsel__read_on_cpu_scaled(struct perf_evsel *evsel,
+ int perf_evsel__parse_sample(struct perf_evsel *evsel, union perf_event *event,
+ 			     struct perf_sample *sample);
+ 
++int perf_evsel__parse_time(struct perf_evsel *evsel, union perf_event *event,
++			   u64 *time);
++
+ static inline struct perf_evsel *perf_evsel__next(struct perf_evsel *evsel)
+ {
+ 	return list_entry(evsel->node.next, struct perf_evsel, node);
 diff --git a/tools/perf/util/session.c b/tools/perf/util/session.c
 index 0baf75f..1db25db 100644
 --- a/tools/perf/util/session.c
