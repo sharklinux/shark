@@ -38,7 +38,7 @@
 static const char *progname = "shark";
 lua_State *g_ls;
 
-int shark_verbose;
+static int shark_verbose;
 
 uv_loop_t *g_event_loop;
 static uv_signal_t g_uv_signal_int;
@@ -294,6 +294,11 @@ int main(int argc, char **argv)
 	lua_setfield(ls, -2, "uv");
 
 	luaL_openlib(ls, "shark", ll_shark, 0);
+
+	lua_getglobal(ls, "shark");
+	lua_pushboolean(ls, shark_verbose);
+	lua_setfield(ls, -2, "verbose");
+	lua_pop(ls, 1);
 
 	int narg = getargs(ls, argv, script);  /* collect arguments */
 	lua_setglobal(ls, "arg");

@@ -821,10 +821,12 @@ shark.add_end_notify(function()
     stats.flush_num = stats.flush_num + stats.samples_num - prev_samples_num
   end
 
-  print(string.format("shark: Woken up %d times, flushed %d events, losted %d events, total %d sample events, avg event process time is %d usec",
+  if shark.verbose then
+    print(string.format("shark: Woken up %d times, flushed %d events, losted %d events, total %d sample events, avg event process time is %d usec",
                         stats.wakeup_num, stats.flush_num,
                         stats.lost_num, stats.samples_num,
                         stats.callback_sum_time / stats.samples_num))
+  end
 end)
 
 return perf

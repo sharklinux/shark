@@ -106,14 +106,14 @@ end
 -- standard histogram print function
 -- all type keys and number value
 local __print_hist = function(t, cmp_func, mode)
-  local sorted_tbl = {}
-  setmetatable(sorted_tbl, {__index = function() return 0 end })
-  local stdSum = 0, 0
+  local stdSum = 0
   local array = {}
 
   for k, v in pairs(t) do
     stdSum = stdSum + v
-    array[#array + 1] = {k = k, v = v}
+    if tostring(k) ~= "" then
+      array[#array + 1] = {k = k, v = v}
+    end
   end
 
   table.sort(array, function(v1, v2)
