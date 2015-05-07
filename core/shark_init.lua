@@ -140,10 +140,12 @@ local function upload_flamegraph(profile_tbl)
     end
   end
 
-  local url = "http://www.sharkly.io/flamegraph"
+  local url
   local shark_id = shark_read_id()
-  if shark_id then
-    url = url .. "/" .. shark_id
+  if shark_id and shark_id ~= ""  then
+    url = "http://www.sharkly.io/gist/" .. shark_id .. "/flamegraph"
+  else
+    url = "http://www.sharkly.io/gist/null/flamegraph"
   end
 
   http.request{
@@ -157,8 +159,8 @@ local function upload_flamegraph(profile_tbl)
   }
 
   if response_body[1] then
-    local id = string.match(response_body[1], "(.*)/()")
-    if shark_id and shark_id ~= id then
+    local id = string.match(response_body[1], "(.*)/flamegraph/()")
+    if shark_id and shark_id ~= "" and shark_id ~= id then
       print(string.format("error: return id(%s) is not equal with shark_id(%s)",
                            id, shark_id))
       os.exit(-1)
@@ -166,7 +168,7 @@ local function upload_flamegraph(profile_tbl)
       shark_write_id(id)
     end
 
-    print("Open flamegraph at: http://www.sharkly.io/flamegraph/" .. response_body[1])
+    print("Open flamegraph at: http://www.sharkly.io/gist/" .. response_body[1])
   end
 end
 
