@@ -24,6 +24,9 @@
 local uv = require("uv")
 local ffi = require("ffi")
 
+package.path = package.path .. ";./deps/?.lua"
+package.cpath = package.cpath .. ";./deps/?.so"
+
 -- microsecond precision
 ffi.cdef[[
 typedef long time_t;
@@ -89,6 +92,88 @@ shark.on_end = function(callback)
   uv.signal_start(sigterm, "sigterm", function()
     call_end()
   end)
+end
+
+
+shark.upload = function(str, ...)
+  local nargs = select('#', ...)
+  local args = {...}
+
+  if str == "flame" or str == "flamegraph" then
+    local profile = args[1]
+    print(profile)
+  end
+end
+
+---------------------------------------------------------------
+
+local function shark_read_id()
+  local shark_id = nil
+  local shark_config_file = io.open("/etc/shark_config", "rb")
+  if shark_config_file then
+    shark_id = shark_config_file:read("*all")
+    shark_config_file:close()
+  end
+  return shark_id
+end
+
+local function shark_write_id(id)
+  local shark_id = nil
+  local shark_config_file = io.open("/etc/shark_config", "w")
+  if shark_config_file then
+    shark_config_file:write(id)
+    shark_config_file:close()
+  end
+end
+
+local http = require "socket.http"
+local ltn12 = require "ltn12"
+
+--TODO: use stackcollaps firstly; send table directly.
+local function upload_flamegraph(profile_tbl)
+  local request_body = ""
+  local response_body = {}
+
+  for k, v in pairs(profile_tbl) do
+    if k ~= "" then
+      request_body = request_body .. k .. tostring(v) .. "\n"
+    end
+  end
+
+  local url = "http://localhost/flamegraph"
+  local shark_id = shark_read_id()
+  if shark_id then
+    url = url .. "/" .. shark_id
+  end
+
+  http.request{
+    url = url,
+    method = "POST",
+    headers = {
+      ["Content-Length"] = string.len(request_body)
+    },
+    source = ltn12.source.string(request_body),
+    sink = ltn12.sink.table(response_body)
+  }
+
+  if response_body[1] then
+    local id = string.match(response_body[1], "(.*)/()")
+    if shark_id and shark_id ~= id then
+      print(string.format("error: return id(%s) is not equal with shark_id(%s)",
+                           id, shark_id))
+      os.exit(-1)
+    else
+      shark_write_id(id)
+    end
+
+    print("Open flamegraph at: http://localhost/flamegraph/" .. response_body[1])
+  end
+end
+
+shark.upload= function(str, data)
+  if str == "flamegraph" or str == "flame" then
+    upload_flamegraph(data)
+  end
 end
 
 ---------------------------------------------------------------
