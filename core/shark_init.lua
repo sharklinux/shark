@@ -140,7 +140,7 @@ local function upload_flamegraph(profile_tbl)
     end
   end
 
-  local url = "http://localhost/flamegraph"
+  local url = "http://www.sharkly.io/flamegraph"
   local shark_id = shark_read_id()
   if shark_id then
     url = url .. "/" .. shark_id
@@ -166,7 +166,7 @@ local function upload_flamegraph(profile_tbl)
       shark_write_id(id)
     end
 
-    print("Open flamegraph at: http://localhost/flamegraph/" .. response_body[1])
+    print("Open flamegraph at: http://www.sharkly.io/flamegraph/" .. response_body[1])
   end
 end
 
