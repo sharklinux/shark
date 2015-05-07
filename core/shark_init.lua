@@ -95,16 +95,6 @@ shark.on_end = function(callback)
 end
 
 
-shark.upload = function(str, ...)
-  local nargs = select('#', ...)
-  local args = {...}
-
-  if str == "flame" or str == "flamegraph" then
-    local profile = args[1]
-    print(profile)
-  end
-end
-
 ---------------------------------------------------------------
 
 local function shark_read_id()
@@ -130,22 +120,16 @@ local http = require "socket.http"
 local ltn12 = require "ltn12"
 
 --TODO: use stackcollaps firstly; send table directly.
-local function upload_flamegraph(profile_tbl)
-  local request_body = ""
+local function sharkly_gist_post(content_type, content)
+  local request_body = content
   local response_body = {}
-
-  for k, v in pairs(profile_tbl) do
-    if k ~= "" then
-      request_body = request_body .. k .. tostring(v) .. "\n"
-    end
-  end
 
   local url
   local shark_id = shark_read_id()
   if shark_id and shark_id ~= ""  then
-    url = "http://www.sharkly.io/gist/" .. shark_id .. "/flamegraph"
+    url = "http://www.sharkly.io/gist/" .. shark_id .. "/" .. content_type
   else
-    url = "http://www.sharkly.io/gist/null/flamegraph"
+    url = "http://www.sharkly.io/gist/null/" .. content_type
   end
 
   http.request{
@@ -159,7 +143,8 @@ local function upload_flamegraph(profile_tbl)
   }
 
   if response_body[1] then
-    local id = string.match(response_body[1], "(.*)/flamegraph/()")
+    local pattern = "(.*)/" .. content_type .. "/()"
+    local id = string.match(response_body[1], pattern)
     if shark_id and shark_id ~= "" and shark_id ~= id then
       print(string.format("error: return id(%s) is not equal with shark_id(%s)",
                            id, shark_id))
@@ -168,13 +153,37 @@ local function upload_flamegraph(profile_tbl)
       shark_write_id(id)
     end
 
-    print("Open flamegraph at: http://www.sharkly.io/gist/" .. response_body[1])
+    print("Open " .. content_type .. " at: http://www.sharkly.io/gist/" .. response_body[1])
   end
 end
 
-shark.upload= function(str, data)
-  if str == "flamegraph" or str == "flame" then
-    upload_flamegraph(data)
+shark.post= function(content_type, data)
+  local content = ""
+
+  if content_type == "flamegraph" then
+    for k, v in pairs(data) do
+      if k ~= "" then
+        content = content .. k .. tostring(v) .. "\n"
+      end
+    end
+    sharkly_gist_post("flamegraph", content)
+    return
+  end
+
+  if content_type == "heatmap" then
+    local file = io.open("/tmp/heatmap.txt", "w+")
+
+    for _, v in pairs(data) do
+      file:write(v, "\n")
+    end
+    file:close()
+
+    file = io.open("/tmp/heatmap.txt", "rb")
+    content = file:read("*all")
+    file:close()
+
+    sharkly_gist_post("heatmap", content)
+    return
   end
 end
 
