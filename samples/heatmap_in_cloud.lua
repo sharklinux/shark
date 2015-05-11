@@ -1,6 +1,7 @@
 
-local perf = require("perf")
-local ffi_string = require("ffi").string
+local perf = require "perf"
+local ffi_string = require "ffi".string
+local sharkcloud = require "sharkcloud"
 
 local t = {}
 local rec = {}
@@ -20,6 +21,6 @@ perf.on("syscalls:sys_enter_write, syscalls:sys_exit_write", function(e)
 end)
 
 shark.on_end(function()
-  shark.post("heatmap", rec)
+  sharkcloud.post("heatmap", rec)
 end)
 
