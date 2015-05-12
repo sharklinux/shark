@@ -2,7 +2,6 @@
 
 We need to build a modern performance management system
 
-
 ## Motivation
 
 Currently System Performance Management is painful(and suck).
@@ -93,6 +92,7 @@ intelligence on system performane management, in open source way.
         CONFIG_BPF=y
         CONFIG_BPF_SYSCALL=y
 	clang installed in target system
+        llc-bpf binary installed(https://github.com/sharklinux/llc-bpf)
 	Linux kernel header file installed
 
 ##Samples

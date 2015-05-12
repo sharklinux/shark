@@ -274,7 +274,7 @@ int main(int argc, char **argv)
 	g_ls = ls;
 
 	script = collectargs(argv, &flags);
-	if (script < 0) {  /* invalid args? */
+	if (script <= 0) {  /* invalid args? */
 		print_usage();
 		return 0;
 	}
