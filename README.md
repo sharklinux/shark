@@ -16,7 +16,7 @@ Pains:
 - All is based on your experence
 
 Shark project is trying to change System Performance Management in
-three levels: API, Consistent standalone tools and Cloud monitoring and analysis
+three levels: API, Consistent commandline tools, Cloud monitoring and analysis
 
 *API*
 
@@ -26,7 +26,7 @@ fundamental base for Consistent commandline tools and Cloud monitoring.
 
 We already developed lua perf event API, more API will be support soon.
 
-*Consistent standalone tools*
+*Consistent commandline tools*
 
 Based on powerful API, we can invent many consistent commandline tools which 
 cover different subsystems. We think "consistent" is very important for long
