@@ -1,16 +1,56 @@
 # shark
 
-A new event modeled system tracing and monitoring tool
+We need to build a modern performance management system
 
+
+## Motivation
+
+Currently System Performance Management is painful(and suck).
+
+Pains:
+- No unified system tracing and monitoring scripting API
+  (No way to programming perf event; systemtap is in kernel space; etc)
+- Too fragmental commandline tools
+- limited system visualization
+  (flamegraph and heatmap is a good start, but we need more than that)
+- No easy use cloud monitoring solution
+- All is based on your experence
+
+Shark project is trying to change System Performance Management in
+three levels: API, Consistent standalone tools and Cloud monitoring and analysis
+
+*API*
+
+shark project expect to delieve a unified event API, user can programming the
+API, we believe that a well designed system tracing and monitoring API is the
+fundamental base for Consistent commandline tools and Cloud monitoring.
+
+We already developed lua perf event API, more API will be support soon.
+
+*Consistent standalone tools*
+
+Based on powerful API, we can invent many consistent commandline tools which 
+cover different subsystems. We think "consistent" is very important for long
+term evolution, and it's important for cloud analysis platform.
+
+*Cloud monitoring and analysis*
+
+We believe ultimately all system performance management will goes to
+intelligent, most likely through cloud. user don't need spend many days to
+investigate why system become slow, the cloud robot will tell you the reason
+instantly.
+
+The ultimate goal of shark project is build a cloud robot with special
+intelligence on system performane management, in open source way. 
 
 ## Highlights
 
 1. Rich system tracing and monitoring API
 
    Supported perf and bpf modules
-   Will support pcap and more
+   Will support more api soon(pcap)
 
-2. Capture any events in real time
+2. Capture any events in real time(Support in future)
 
    shark can capture any events in real time:
    tcp(udp) packet, syscalls, tracepoints, kprobe, uprobe, function,
@@ -23,10 +63,11 @@ A new event modeled system tracing and monitoring tool
 
    Powerful and flexible lua script language for event analysis, all lua
    libraries can be use for analysis.
-   Easy to build cloud/distributed monitoring
+   Easy to build cloud/distributed monitoring solution
 
-4. Support ebpf scripting
+4. Support perf/ebpf scripting
 
+   trace perf event as you want, all is in userspace.
    shark already support ebpf, user can access ebpf map as lua table.
 
 5. Fast
@@ -40,7 +81,8 @@ A new event modeled system tracing and monitoring tool
 
 7. Easy deployment
 
-   No kernel module needed, all is one binary
+   No kernel module needed.
+   will support standalone binary deployment soon.
 
 
 ## Prerequisites
@@ -65,6 +107,24 @@ A new event modeled system tracing and monitoring tool
           print(ffi.string(e.raw.prev_comm), ffi.string(e.raw.next_comm))
         end)
 
+2. flamegraph
+
+        local perf = require "perf"
+        local sharkcloud = require "sharkcloud"
+
+        local profile = {}
+        setmetatable(profile, {__index = function() return 0 end})
+
+        perf.on("cpu-clock", {callchain_k = 1}, function(e)
+          profile[e.callchain] = profile[e.callchain] + 1
+        end)
+
+        shark.on_end(function()
+          --Open flamegraph at http://sharkly.io/
+          sharkcloud.post("flamegraph", profile)
+        end)
+
+
 More samples can be found in samples/ directory.
 
 
@@ -75,6 +135,11 @@ More samples can be found in samples/ directory.
         shark.on_end(callback)
         shark.print_hist
 
+2. sharkcloud
+
+        sharkcloud.post("flamegraph", table)
+        sharkcloud.post("heatmap", table)
+
 2. timer
 
         set_interval(timeout, callback)
@@ -82,14 +147,81 @@ More samples can be found in samples/ directory.
 
 3. perf
 
-        local perf = require("perf")
+        local perf = require "perf"
 
         perf.on(events_str, [opts], callback)
 
+        perf.print(event)
 
-4. bpf
+4. perf config option
 
-        local bpf = require("bpf")
+        perf can be configured by table:
+
+        struct shark_perf_config {
+            int no_buffering;
+            int wake_events;
+            int mmap_pages;
+            const char *target_pid;
+            const char *target_tid;
+            const char *target_cpu_list;
+            const char *filter;
+            int read_events_rate;
+            int callchain_k;
+            int callchain_u;
+        };
+
+5. event
+
+        All perf traced events is C data (struct perf_sample), so
+        user can access the event directly(and very fast).
+
+        the detail event data structure is:
+
+        struct event_sample {
+            u64 ip;
+            u32 pid, tid;
+            u64 time;
+            u64 addr;
+            u64 id;
+            u64 stream_id;
+            u64 period;
+            u64 weight;
+            u64 transaction;
+            u32 cpu;
+            u32 raw_size;
+            u64 data_src;
+            u32 flags;
+            u16 insn_len;
+            union {
+                void *raw_data;
+                struct event_fmt_type *raw; /* event specific type */
+            };
+            struct ip_callchain *_callchain;
+            struct branch_stack *branch_stack;
+            struct regs_dump  user_regs;
+            struct regs_dump  intr_regs;
+            struct stack_dump user_stack;
+            struct sample_read read;
+
+            const char *name;
+        };
+
+        Most frequent used field is(e as event):
+        e.time, e.pid, e.tid, e.cpu, e.raw.*, e.name, e.callchain
+
+        The "raw" format type can be found in:
+        /sys/kernel/debug/tracing/events/$SUBSYSTEM/$EVENT/format 
+
+        for example, for event "sched:sched_switch", we can access event raw
+        fields like below:
+        e.raw.prev_comm, e.raw.prev_pid, e.raw.prev_state, ...
+
+        Also, event can be printed by "perf.print(e)"
+
+
+6. bpf
+
+        local bpf = require "bpf"
 
         bpf.cdef
         bpf.var.'mapname'
@@ -118,13 +250,11 @@ Please don't use lua standard pairs/ipairs(below) for bpf.var.'map' now.
 
 There have some wish list on shark:
 
-1. Small compiler for ebpf bytecode generate, suit for embedded systems
-
-2. Generic translator for tracing language
-
-3. Support debuginfo without include kernel header files
-
-4. More api for analysis(networking, packet, etc)
+1. More option support for perf module.
+2. pcap module for networking monitoring
+3. lua http module for cloud monitoring(sharkly.io)
+4. stable maintained shark tools
+5. support more platform(only x86-64 been tested now)
 
 ## Mailing list
 
