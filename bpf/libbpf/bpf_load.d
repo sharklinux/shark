@@ -1,5 +1,6 @@
-bpf_load.o: bpf_load.c /usr/include/stdc-predef.h /usr/include/stdio.h \
- /usr/include/features.h /usr/include/x86_64-linux-gnu/sys/cdefs.h \
+bpf/libbpf/bpf_load.o: bpf/libbpf/bpf_load.c /usr/include/stdc-predef.h \
+ /usr/include/stdio.h /usr/include/features.h \
+ /usr/include/x86_64-linux-gnu/sys/cdefs.h \
  /usr/include/x86_64-linux-gnu/bits/wordsize.h \
  /usr/include/x86_64-linux-gnu/gnu/stubs.h \
  /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
@@ -67,5 +68,5 @@ bpf_load.o: bpf_load.c /usr/include/stdc-predef.h /usr/include/stdio.h \
  /usr/include/x86_64-linux-gnu/bits/mman.h \
  /usr/include/x86_64-linux-gnu/bits/mman-linux.h /usr/include/poll.h \
  /usr/include/x86_64-linux-gnu/sys/poll.h \
- /usr/include/x86_64-linux-gnu/bits/poll.h libbpf.h bpf_helpers.h \
- bpf_map_def.h bpf_load.h
+ /usr/include/x86_64-linux-gnu/bits/poll.h bpf/libbpf/libbpf.h \
+ bpf/libbpf/bpf_helpers.h bpf/libbpf/bpf_map_def.h bpf/libbpf/bpf_load.h

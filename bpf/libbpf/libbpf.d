@@ -1,5 +1,6 @@
-libbpf.o: libbpf.c /usr/include/stdc-predef.h /usr/include/stdlib.h \
- /usr/include/features.h /usr/include/x86_64-linux-gnu/sys/cdefs.h \
+bpf/libbpf/libbpf.o: bpf/libbpf/libbpf.c /usr/include/stdc-predef.h \
+ /usr/include/stdlib.h /usr/include/features.h \
+ /usr/include/x86_64-linux-gnu/sys/cdefs.h \
  /usr/include/x86_64-linux-gnu/bits/wordsize.h \
  /usr/include/x86_64-linux-gnu/gnu/stubs.h \
  /usr/include/x86_64-linux-gnu/gnu/stubs-64.h \
@@ -57,4 +58,4 @@ libbpf.o: libbpf.c /usr/include/stdc-predef.h /usr/include/stdlib.h \
  /usr/include/arpa/inet.h /usr/include/netinet/in.h \
  /usr/lib/gcc/x86_64-linux-gnu/4.8/include/stdint.h /usr/include/stdint.h \
  /usr/include/x86_64-linux-gnu/bits/wchar.h \
- /usr/include/x86_64-linux-gnu/bits/in.h libbpf.h
+ /usr/include/x86_64-linux-gnu/bits/in.h bpf/libbpf/libbpf.h

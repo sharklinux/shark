@@ -4,11 +4,10 @@ CFLAGS=-I. -I core/ -I core/libuv/include -I core/luajit/src/ -I bpf/libbpf/
 CORE_LIB=core/luajit/src/libluajit.a core/libuv/.libs/libuv.a
 
 PERF_LIBS= perf/libperf.a perf/libtraceevent.a perf/libapikfs.a
-BPF_LIBS=bpf/libbpf/libbpf.a
-LIB=$(CORE_LIB) $(PERF_LIBS) $(BPF_LIBS) -lm -ldl -lelf -lc -lpthread
+LIB=$(CORE_LIB) $(PERF_LIBS) -lm -ldl -lelf -lc -lpthread
 
 TARGET=shark
-OBJS=core/shark.o core/luv/luv.o bpf/bpf.o perf/perf.o
+OBJS=core/shark.o core/luv/luv.o bpf/bpf.o bpf/libbpf/bpf_load.o bpf/libbpf/libbpf.o perf/perf.o
 
 BUILTIN_LUA_OBJS = perf/perf_builtin_lua.o bpf/bpf_builtin_lua.o
 
@@ -22,7 +21,7 @@ core/luajit/src/libluajit.a:
 	@cd core/luajit; make
 
 core/libuv/.libs/libuv.a:
-	@cd core/libuv; make
+	@cd core/libuv; ./autogen.sh; ./configure; make
 
 
 DEPS := $(OBJS:.o=.d)
