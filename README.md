@@ -1,6 +1,39 @@
 # shark
 
-We need to build a modern performance management system
+A new modern performance management system, include API, consistent commandline tools, cloud monitoring and analysis.
+
+## Quick Start
+
+1. perf tracepoint
+
+        local perf = require("perf")
+        local ffi = require("ffi")
+
+        perf.on("sched:sched_switch", function(e)
+          print(ffi.sting(e.name), e.cpu, e.pid)
+          print(ffi.string(e.raw.prev_comm), ffi.string(e.raw.next_comm))
+        end)
+
+2. flamegraph
+
+        local perf = require "perf"
+        local sharkcloud = require "sharkcloud"
+
+        local profile = {}
+        setmetatable(profile, {__index = function() return 0 end})
+
+        perf.on("cpu-clock", {callchain_k = 1}, function(e)
+          profile[e.callchain] = profile[e.callchain] + 1
+        end)
+
+        shark.on_end(function()
+          --Open flamegraph at http://sharkly.io/
+          sharkcloud.post("flamegraph", profile)
+        end)
+
+
+More samples can be found in samples/ directory.
+
 
 ## Motivation
 
@@ -82,50 +115,6 @@ intelligence on system performane management, in open source way.
 
    No kernel module needed.
    will support standalone binary deployment soon.
-
-
-## Prerequisites
-
-1. use bpf module
-
-        Linux kernel version >= 4.0
-        CONFIG_BPF=y
-        CONFIG_BPF_SYSCALL=y
-	clang installed in target system
-        llc-bpf binary installed(https://github.com/sharklinux/llc-bpf)
-	Linux kernel header file installed
-
-##Samples
-
-1. perf tracepoint
-
-        local perf = require("perf")
-        local ffi = require("ffi")
-
-        perf.on("sched:sched_switch", function(e)
-          print(ffi.sting(e.name), e.cpu, e.pid)
-          print(ffi.string(e.raw.prev_comm), ffi.string(e.raw.next_comm))
-        end)
-
-2. flamegraph
-
-        local perf = require "perf"
-        local sharkcloud = require "sharkcloud"
-
-        local profile = {}
-        setmetatable(profile, {__index = function() return 0 end})
-
-        perf.on("cpu-clock", {callchain_k = 1}, function(e)
-          profile[e.callchain] = profile[e.callchain] + 1
-        end)
-
-        shark.on_end(function()
-          --Open flamegraph at http://sharkly.io/
-          sharkcloud.post("flamegraph", profile)
-        end)
-
-
-More samples can be found in samples/ directory.
 
 
 ## API:
@@ -227,6 +216,16 @@ More samples can be found in samples/ directory.
         bpf.var.'mapname'
         bpf.print_hist_map
 
+## Prerequisites
+
+1. use bpf module
+
+        Linux kernel version >= 4.0
+        CONFIG_BPF=y
+        CONFIG_BPF_SYSCALL=y
+	clang installed in target system
+        llc-bpf binary installed(https://github.com/sharklinux/llc-bpf)
+	Linux kernel header file installed
 
 ## Attention:
 
@@ -248,13 +247,8 @@ Please don't use lua standard pairs/ipairs(below) for bpf.var.'map' now.
 
 ## Future/TODO
 
-There have some wish list on shark:
-
-1. More option support for perf module.
-2. pcap module for networking monitoring
-3. lua http module for cloud monitoring(sharkly.io)
-4. stable maintained shark tools
-5. support more platform(only x86-64 been tested now)
+Please go to shark wiki:
+https://github.com/sharklinux/shark/wiki/todo-list
 
 ## Mailing list
 
