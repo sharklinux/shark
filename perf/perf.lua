@@ -171,6 +171,10 @@ int machine__process_event(struct machine *machine, union perf_event *event,
 struct machine *perf_session__get_machine(struct perf_session *session);
 void perf_evsel__set_callchain(struct perf_evsel *evsel, bool callchain_k,
                                bool callchain_u);
+struct thread *machine__findnew_thread(struct machine *machine, pid_t pid,
+                                       pid_t tid);
+const char *machine__parse_ip(struct machine *machine,
+                              struct perf_sample *sample, u64 ip);
 
 struct pollfd {
 	int fd;
@@ -443,13 +447,19 @@ struct %s {
 
 --define "struct perf_sample" for events without format, like cpu-clock. 
 ffi.cdef(string.format(perf_sample_struct_fmt, "perf_sample", "{}"))
-
 local ctype_perf_sample = ffi.typeof("struct perf_sample *")
+
+perf.parse_ip= function(sample, ip)
+  local cast_sample = ffi.cast(ctype_perf_sample, sample)
+  local sym = C.machine__parse_ip(sample.handle.machine, cast_sample, ip)
+  return ffi.string(sym)
+end
 
 local ct_metatable_sample = {
   __index = function(sample, key)
     if key == "callchain" then
       local cast_sample = ffi.cast(ctype_perf_sample, sample)
+      -- use thread__resolve_callchain?
       local callchain = C.perf_callchain_backtrace(sample.event, cast_sample,
                                                    sample.handle.machine)
       if callchain == nil then
@@ -633,7 +643,7 @@ local function mmap_read_consume(handle, evlist, callback, max_nr_read)
       if event.header.type == C.PERF_RECORD_LOST then
         stats.lost_num = stats.lost_num + tonumber(event.lost.lost)
       end
-      --C.machine__process_event(handle.machine, event, perf_sample)
+      C.machine__process_event(handle.machine, event, perf_sample)
     end
 
     C.perf_evlist__mmap_consume(evlist, idx)

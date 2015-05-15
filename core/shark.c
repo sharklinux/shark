@@ -29,7 +29,6 @@
 #include "lua.h"
 #include "lualib.h"
 #include "lauxlib.h"
-#include "bpf_load.h"
 #include "shark.h"
 #include "libuv/include/uv.h"
 #include "luajit/src/lj_obj.h"
@@ -115,10 +114,14 @@ static int shark_api_exec(lua_State *ls)
 	return 0;
 }
 
+#ifndef BPF_DISABLE
+#include "bpf_load.h"
+
 #include <net/ethernet.h>
 #include <net/if.h>
 #include <linux/if_packet.h>
 #include <arpa/inet.h>
+
 static int shark_api_open_raw_sock(lua_State *ls)
 {
 	const char *name = lua_tostring(ls, -1);
@@ -166,6 +169,7 @@ static int shark_api_iptos(lua_State *ls)
 	lua_pushstring(ls, inet_ntoa((struct in_addr){htonl(ip)}));
 	return 1;
 }
+#endif
 
 static const struct luaL_reg ll_shark[] = {
         {"debuginfo_set", &shark_api_debuginfo_set},
@@ -175,10 +179,11 @@ static const struct luaL_reg ll_shark[] = {
         {"set_binary", &shark_api_set_binary},
         {"exec", &shark_api_exec},
 //TODO: move to sock library
+#ifndef BPF_DISABLE
         {"open_raw_sock", &shark_api_open_raw_sock},
         {"sock_attach_bpf", &shark_api_sock_attach_bpf},
-
         {"iptos", &shark_api_iptos},
+#endif
 	{NULL, NULL}
 };
 
