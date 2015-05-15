@@ -1,6 +1,6 @@
 # shark
 
-A new modern performance management system, include API, consistent commandline tools, cloud monitoring and analysis.
+We're building a better performance management system, which include API, consistent commandline tools, cloud monitoring and analysis.
 
 ## Quick Start
 
@@ -12,6 +12,14 @@ A new modern performance management system, include API, consistent commandline 
         perf.on("sched:sched_switch", function(e)
           print(ffi.sting(e.name), e.cpu, e.pid)
           print(ffi.string(e.raw.prev_comm), ffi.string(e.raw.next_comm))
+        end)
+
+        perf.on("syscalls:*", function(e)
+          print(ffi.string(e.name))
+        end)
+
+        perf.on("cpu-clock", {callchain_k = 1}, function(e)
+          print(e.callchain)
         end)
 
 2. flamegraph
