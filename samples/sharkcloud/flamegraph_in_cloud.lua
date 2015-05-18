@@ -9,5 +9,5 @@ perf.on("cpu-clock", {callchain_k = 1}, function(e)
 end)
 
 shark.on_end(function()
-  sharkcloud.post("flamegraph", profile)
+  sharkcloud.senddata("flamegraph", profile)
 end)

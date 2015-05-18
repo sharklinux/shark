@@ -36,7 +36,7 @@ We're building a better performance management system, which include API, consis
 
         shark.on_end(function()
           --Open flamegraph at http://sharkly.io/
-          sharkcloud.post("flamegraph", profile)
+          sharkcloud.senddata("flamegraph", profile)
         end)
 
 
@@ -134,8 +134,8 @@ intelligence on system performane management, in open source way.
 
 2. sharkcloud
 
-        sharkcloud.post("flamegraph", table)
-        sharkcloud.post("heatmap", table)
+        sharkcloud.senddata("flamegraph", table)
+        sharkcloud.senddata("heatmap", table)
 
 2. timer
 

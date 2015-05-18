@@ -89,7 +89,7 @@ local function sharkly_gist_post(content_type, seq, content)
   return nil
 end
 
-function _M.post(content_type, data)
+function _M.senddata(content_type, data)
   local content = ""
 
   if content_type == "flamegraph" then
@@ -122,14 +122,14 @@ function _M.post(content_type, data)
   end
 end
 
-function _M.post_start(content_type)
+function _M.senddata_start(content_type)
     local res = sharkly_gist_post(content_type, nil, "")
     local seq = string.match(res, "heatmap/(.*).svg")
     print("Open " .. content_type .. " at: http://www.sharkly.io/gist/" .. res)
     return {content_type = content_type, seq = seq}
 end
 
-function _M.post_append(session, data)
+function _M.senddata_append(session, data)
   if session.content_type == "heatmap" then
     local file = io.open("/tmp/heatmap.txt", "w+")
 
