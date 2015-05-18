@@ -228,7 +228,7 @@ intelligence on system performane management, in open source way.
 
 1. use bpf module
 
-        Linux kernel version >= 4.0
+        Linux kernel version >= 4.0 (use 'make BPF_DISABLE=1' for old kernel)
         CONFIG_BPF=y
         CONFIG_BPF_SYSCALL=y
 	clang installed in target system
