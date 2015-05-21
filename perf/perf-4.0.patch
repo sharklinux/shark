@@ -1,3 +1,16 @@
+diff --git a/tools/lib/api/fs/debugfs.c b/tools/lib/api/fs/debugfs.c
+index d2b18e8..0792f08 100644
+--- a/tools/lib/api/fs/debugfs.c
++++ b/tools/lib/api/fs/debugfs.c
+@@ -68,8 +68,6 @@ int debugfs_valid_mountpoint(const char *debugfs)
+ 
+ 	if (statfs(debugfs, &st_fs) < 0)
+ 		return -ENOENT;
+-	else if ((long)st_fs.f_type != (long)DEBUGFS_MAGIC)
+-		return -ENOENT;
+ 
+ 	return 0;
+ }
 diff --git a/tools/perf/Makefile.perf b/tools/perf/Makefile.perf
 index aa6a504..54caada 100644
 --- a/tools/perf/Makefile.perf
@@ -368,7 +381,7 @@ index e99a676..6acf5dc 100644
  bool perf_evlist__valid_sample_id_all(struct perf_evlist *evlist);
  bool perf_evlist__valid_read_format(struct perf_evlist *evlist);
 diff --git a/tools/perf/util/evsel.c b/tools/perf/util/evsel.c
-index ea51a90..b9a7ea7 100644
+index ea51a90..e0c4079 100644
 --- a/tools/perf/util/evsel.c
 +++ b/tools/perf/util/evsel.c
 @@ -180,6 +180,13 @@ void __perf_evsel__reset_sample_bit(struct perf_evsel *evsel,
@@ -469,7 +482,7 @@ index ea51a90..b9a7ea7 100644
  u64 perf_evsel__intval(struct perf_evsel *evsel, struct perf_sample *sample,
  		       const char *name)
  {
-@@ -2146,3 +2223,13 @@ int perf_evsel__open_strerror(struct perf_evsel *evsel, struct target *target,
+@@ -2146,3 +2223,15 @@ int perf_evsel__open_strerror(struct perf_evsel *evsel, struct target *target,
  			 err, strerror_r(err, sbuf, sizeof(sbuf)),
  			 perf_evsel__name(evsel));
  }
@@ -483,6 +496,8 @@ index ea51a90..b9a7ea7 100644
 +{
 +	return evsel->ctype_ref;
 +}
++
++
 diff --git a/tools/perf/util/evsel.h b/tools/perf/util/evsel.h
 index 3862274..3b98957 100644
 --- a/tools/perf/util/evsel.h
@@ -533,6 +548,43 @@ index 3862274..3b98957 100644
  static inline struct perf_evsel *perf_evsel__next(struct perf_evsel *evsel)
  {
  	return list_entry(evsel->node.next, struct perf_evsel, node);
+diff --git a/tools/perf/util/machine.c b/tools/perf/util/machine.c
+index 1bca3a9..32ec068 100644
+--- a/tools/perf/util/machine.c
++++ b/tools/perf/util/machine.c
+@@ -1743,3 +1743,20 @@ int machine__get_kernel_start(struct machine *machine)
+ 	}
+ 	return err;
+ }
++
++const char *machine__parse_ip(struct machine *machine,
++			      struct perf_sample *sample, u64 ip)
++{
++	struct addr_location al;
++	struct thread *thread;
++
++	al.filtered = 0;
++	thread = machine__findnew_thread(machine, sample->pid, sample->tid);
++	if (!thread)
++		return NULL;
++
++	thread__find_addr_location(thread, PERF_RECORD_MISC_KERNEL,
++				   MAP__FUNCTION, ip, &al);
++	return al.sym->name;
++}
++
+diff --git a/tools/perf/util/machine.h b/tools/perf/util/machine.h
+index e8b7779..729225a 100644
+--- a/tools/perf/util/machine.h
++++ b/tools/perf/util/machine.h
+@@ -224,4 +224,7 @@ pid_t machine__get_current_tid(struct machine *machine, int cpu);
+ int machine__set_current_tid(struct machine *machine, int cpu, pid_t pid,
+ 			     pid_t tid);
+ 
++const char *machine__parse_ip(struct machine *machine,
++			      struct perf_sample *sample, u64 ip);
++
+ #endif /* __PERF_MACHINE_H */
 diff --git a/tools/perf/util/session.c b/tools/perf/util/session.c
 index 0baf75f..1db25db 100644
 --- a/tools/perf/util/session.c

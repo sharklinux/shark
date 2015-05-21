@@ -675,7 +675,7 @@ local function open_perf_event(str, config, callback)
 
   err = C.parse_events(evlist, str)
   if err ~= 0 then
-    print(string.format("parse events [%s] failed!", str))
+    print(string.format("parse events [%s] failed!", str), err)
     return nil
   end
 
@@ -691,7 +691,7 @@ local function open_perf_event(str, config, callback)
     return nil
   end
 
-  C.perf_evlist__create_maps(evlist, opts.target)
+  err = C.perf_evlist__create_maps(evlist, opts.target)
   if err < 0 then
     print("perf_evlist__create_maps failed!")
     return nil
