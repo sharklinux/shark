@@ -1,0 +1,19 @@
+perf moudle for shark
+---------------------
+Tracing perf event by lua.
+
+Supported events
+----------------
+tracepoints, cpu-clock.
+
+API
+---
+See wiki.
+
+
+Extern libraries
+----------------
+The extern static libraries(libapikfs.a libperf.a libtraceevent.a) is generated
+from Linux kernel repo, but there have some change on libperf.a(look perf.patch)
+, mainly is adding more helper functions.
+
