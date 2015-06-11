@@ -30,6 +30,7 @@
 #include "lualib.h"
 #include "lauxlib.h"
 #include "shark.h"
+#include "luv/luv.h"
 #include "libuv/include/uv.h"
 #include "luajit/src/lj_obj.h"
 
