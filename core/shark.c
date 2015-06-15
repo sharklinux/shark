@@ -316,7 +316,7 @@ int main(int argc, char **argv)
 
 	g_event_loop = luv_loop(ls);
 
-	if(ret = luaL_loadfile(ls, argv[script])) {
+	if((ret = luaL_loadfile(ls, argv[script]))) {
 		ret = lua_report(ls, ret);
 		goto out;
 	}
