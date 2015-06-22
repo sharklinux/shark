@@ -8,6 +8,11 @@ typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
 
+struct target;
+struct record_opts;
+struct perf_evlist;
+struct perf_evsel;
+
 struct sample_event {
 	struct perf_event_header        header;
 	u64 array[];
