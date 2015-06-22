@@ -1,6 +1,6 @@
 /*
 ** LuaJIT VM tags, values and objects.
-** Copyright (C) 2005-2014 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2015 Mike Pall. See Copyright Notice in luajit.h
 **
 ** Portions taken verbatim or adapted from the Lua interpreter.
 ** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
@@ -417,11 +417,11 @@ typedef struct GCtab {
   MRef node;		/* Hash part. */
   uint32_t asize;	/* Size of array part (keys [0, asize-1]). */
   uint32_t hmask;	/* Hash part mask (size of hash part - 1). */
-  int data1;		/* shark hack */
-  void *data2;		/* shark hack */
-  void *data3;		/* shark hack */
-  void *data4;		/* shark hack */
-  void *data5;		/* shark hack */
+  int data1;            /* shark hack */
+  void *data2;          /* shark hack */
+  void *data3;          /* shark hack */
+  void *data4;          /* shark hack */
+  void *data5;          /* shark hack */
 } GCtab;
 
 #define sizetabcolo(n)	((n)*sizeof(TValue) + sizeof(GCtab))
