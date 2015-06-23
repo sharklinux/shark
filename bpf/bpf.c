@@ -23,8 +23,10 @@
 #include <limits.h>
 #include <unistd.h>
 #include <errno.h>
+#include <linux/bpf.h>
 #include <poll.h>
 
+#include "libbpf.h"
 #include "bpf_load.h"
 #include "bpf_map_def.h"
 
