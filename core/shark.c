@@ -261,8 +261,6 @@ static void print_version(void)
 	exit(0);
 }
 
-LUALIB_API int luaopen_luv (lua_State *ls);
-
 int main(int argc, char **argv)
 {
 	int ret = EXIT_FAILURE;
