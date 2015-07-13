@@ -54,14 +54,14 @@ Pains:
 - limited system visualization
   (flamegraph and heatmap is a good start, but we need more than that)
 - No easy use cloud monitoring solution
-- All is based on your experence
+- All is based on your experience
 
 Shark project is trying to change System Performance Management in
 three levels: API, Consistent commandline tools, Cloud monitoring and analysis
 
 *API*
 
-shark project expect to delieve a unified event API, user can programming the
+shark project expect to deliver a unified event API, user can programming the
 API, we believe that a well designed system tracing and monitoring API is the
 fundamental base for Consistent commandline tools and Cloud monitoring.
 
