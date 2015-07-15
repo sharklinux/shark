@@ -65,7 +65,7 @@ shark project expect to delieve a unified event API, user can programming the
 API, we believe that a well designed system tracing and monitoring API is the
 fundamental base for Consistent commandline tools and Cloud monitoring.
 
-We already developed lua perf event API, more API will be support soon.
+We already developed lua perf event API, more API will be supportted soon.
 
 *Consistent commandline tools*
 
