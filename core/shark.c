@@ -310,7 +310,10 @@ int main(int argc, char **argv)
 #include "shark_init.h"
 	luaL_loadbuffer(ls, luaJIT_BC_shark_init, luaJIT_BC_shark_init_SIZE,
 			NULL);
-	lua_pcall(ls, 0, 0, 0);
+	if((ret = lua_pcall(ls, 0, 0, 0))) {
+		ret = lua_report(ls, ret);
+		goto out;
+	}
 
 	g_event_loop = luv_loop(ls);
 
