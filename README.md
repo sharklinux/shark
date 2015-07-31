@@ -10,7 +10,7 @@ We're building a better performance management system, which include API, consis
         local ffi = require("ffi")
 
         perf.on("sched:sched_switch", function(e)
-          print(ffi.sting(e.name), e.cpu, e.pid)
+          print(ffi.string(e.name), e.cpu, e.pid)
           print(ffi.string(e.raw.prev_comm), ffi.string(e.raw.next_comm))
         end)
 
