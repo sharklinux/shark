@@ -40,8 +40,6 @@ DEPS := $(OBJS:.o=.d)
 %.o : %.c
 	$(CC) -MD -g -c $(CFLAGS) $< -o $@
 
-LUAJIT_BIN=core/luajit/src/luajit
-
 core/shark_init.h : core/shark_init.lua
 	cd core/luajit/src; ./luajit -b ../../shark_init.lua ../../shark_init.h
 
