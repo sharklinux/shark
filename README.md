@@ -35,7 +35,7 @@ We're building a better performance management system, which include API, consis
         end)
 
         shark.on_end(function()
-          --Open flamegraph at http://sharkly.io/
+          --Open flamegraph at http://www.sharkly.io/
           sharkcloud.senddata("flamegraph", profile)
         end)
 
