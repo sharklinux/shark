@@ -187,20 +187,20 @@ int load_bpf_file(const char *path)
 	Elf_Data *data, *data_prog, *symbols = NULL;
 	char *shname, *shname_prog;
 
-	if (elf_version(EV_CURRENT) == EV_NONE)
-		return 1;
-
 	fd = open(path, O_RDONLY, 0);
 	if (fd < 0)
-		return 1;
+		goto err;
+
+	if (elf_version(EV_CURRENT) == EV_NONE)
+		goto err;
 
 	elf = elf_begin(fd, ELF_C_READ, NULL);
 
 	if (!elf)
-		return 1;
+		goto err;
 
 	if (gelf_getehdr(elf, &ehdr) != &ehdr)
-		return 1;
+		goto err;
 
 	/* clear all kprobes */
 	i = system("echo \"\" > /sys/kernel/debug/tracing/kprobe_events");
@@ -224,13 +224,13 @@ int load_bpf_file(const char *path)
 			if (data->d_size != sizeof(int)) {
 				printf("invalid size of version section %zd\n",
 				       data->d_size);
-				return 1;
+				goto err;
 			}
 			memcpy(&kern_version, data->d_buf, sizeof(int));
 		} else if (strcmp(shname, "maps") == 0) {
 			processed_sec[i] = true;
 			if (load_maps(data->d_buf, data->d_size))
-				return 1;
+				goto err;
 		} else if (shdr.sh_type == SHT_SYMTAB) {
 			symbols = data;
 		}
@@ -275,11 +275,15 @@ int load_bpf_file(const char *path)
 		if (memcmp(shname, "kprobe/", 7) == 0 ||
 		    memcmp(shname, "kretprobe/", 10) == 0 ||
 		    memcmp(shname, "socket", 6) == 0)
-			load_and_attach(shname, data->d_buf, data->d_size);
+		        load_and_attach(shname, data->d_buf, data->d_size);
 	}
 
 	close(fd);
 	return 0;
+err:
+	if (fd >= 0)
+		close(fd);
+	return 1;
 }
 
 void read_trace_pipe(void)
